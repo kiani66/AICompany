@@ -63,7 +63,7 @@ export async function decideMockProposal(input: z.infer<typeof reviewProposal>) 
 export async function listMockProposals() {
   const [company] = await db()`select id from companies limit 1`;
   if (!company) return [];
-  return db()`select id,project_id,status,version,provider,model,snapshot_sha256,proposal,created_at,decided_at
+  return db()`select id,project_id,status,version,provider,model,snapshot,snapshot_sha256,proposal,created_at,decided_at
     from project_plan_proposals where company_id=${company.id}
     order by created_at desc,id desc limit 50`;
 }
