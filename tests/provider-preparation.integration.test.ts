@@ -1,4 +1,6 @@
-import { expect,it } from 'vitest';
+import { expect,it,beforeAll } from 'vitest';
+import { execFileSync } from 'node:child_process';
+beforeAll(()=>{for(const script of ['db:migrate','db:seed'])execFileSync('npm',['run',script],{stdio:'ignore'});},60000);
 import postgres from 'postgres';
 import { executeCommand } from '../src/lib/workflow';
 import { saveMockProposal,decideMockProposal } from '../src/lib/project-plan-workflow';
