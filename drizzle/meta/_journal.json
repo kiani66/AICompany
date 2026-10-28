@@ -15,6 +15,13 @@
       "when": 1793176614031,
       "tag": "0001_hard_dragon_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793177361985,
+      "tag": "0002_violet_boom_boom",
+      "breakpoints": true
     }
   ]
 }

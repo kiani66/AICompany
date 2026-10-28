@@ -1,0 +1,38 @@
+import postgres from 'postgres';
+import { z } from 'zod';
+import { canTransition, hasCycle, type TaskState } from './governance';
+const id=z.string().uuid(), version=z.number().int().positive(), priority=z.enum(['low','medium','high']);
+export const command=z.discriminatedUnion('type',[
+ z.object({type:z.literal('project.create'),name:z.string().trim().min(1).max(150),priority}),
+ z.object({type:z.literal('project.update'),id,version,name:z.string().trim().min(1).max(150),priority,status:z.enum(['active','archived'])}),
+ z.object({type:z.literal('task.create'),projectId:id,title:z.string().trim().min(1).max(150),ownerId:id,priority,acceptanceCriteria:z.string().trim().min(1).max(2000)}),
+ z.object({type:z.literal('task.update'),id,projectId:id,version,title:z.string().trim().min(1).max(150),ownerId:id,priority,acceptanceCriteria:z.string().trim().min(1).max(2000)}),
+ z.object({type:z.literal('task.delete'),id,projectId:id,version}),
+ z.object({type:z.literal('task.transition'),id,projectId:id,version,status:z.enum(['draft','ready','in_progress','blocked','done','cancelled'])}),
+ z.object({type:z.literal('dependency.add'),projectId:id,taskId:id,dependsOnId:id}),
+ z.object({type:z.literal('dependency.remove'),projectId:id,taskId:id,dependsOnId:id}),
+ z.object({type:z.literal('approval.create'),projectId:id,action:z.string().trim().min(1).max(500)}),
+ z.object({type:z.literal('approval.decide'),id,projectId:id,version,status:z.enum(['approved','rejected']),reason:z.string().trim().min(1).max(1000)}),
+]);
+export type Command=z.infer<typeof command>;
+let client: ReturnType<typeof postgres> | undefined;
+function db(){ if(!process.env.DATABASE_URL) throw new Error('Database unavailable'); return client ??= postgres(process.env.DATABASE_URL,{max:5,prepare:false}); }
+export class WorkflowError extends Error {}
+export async function executeCommand(c:Command) { return db().begin(async tx=>{
+ const [company]=await tx`select id from companies limit 1`; if(!company) throw new WorkflowError('Company not initialized');
+ let projectId = 'projectId' in c ? c.projectId : c.type==='project.update' ? c.id : null;
+ if(projectId) { await tx`select pg_advisory_xact_lock(hashtextextended(${projectId}, 0))`; const [project]=await tx`select * from projects where id=${projectId} and company_id=${company.id} for update`; if(!project) throw new WorkflowError('Project not found'); if(project.status==='archived' && c.type!=='project.update') throw new WorkflowError('Project is archived'); }
+ let result: unknown;
+ switch(c.type){
+ case 'project.create': { const [row]=await tx`insert into projects (company_id,name,priority) values (${company.id},${c.name},${c.priority}) returning *`; projectId=row.id; result=row; break; }
+ case 'project.update': { const [row]=await tx`update projects set name=${c.name},priority=${c.priority},status=${c.status},version=version+1 where id=${c.id} and version=${c.version} returning *`; if(!row) throw new WorkflowError('Stale project'); result=row; break; }
+ case 'task.create': { const [owner]=await tx`select id from agents where id=${c.ownerId} and company_id=${company.id} and execution_enabled=false`; if(!owner) throw new WorkflowError('Invalid owner'); const [row]=await tx`insert into tasks (project_id,title,owner_id,priority,acceptance_criteria) values (${c.projectId},${c.title},${c.ownerId},${c.priority},${c.acceptanceCriteria}) returning *`; result=row; break; }
+ case 'task.update': { const [owner]=await tx`select id from agents where id=${c.ownerId} and company_id=${company.id} and execution_enabled=false`; if(!owner) throw new WorkflowError('Invalid owner'); const [row]=await tx`update tasks set title=${c.title},owner_id=${c.ownerId},priority=${c.priority},acceptance_criteria=${c.acceptanceCriteria},version=version+1 where id=${c.id} and project_id=${c.projectId} and version=${c.version} and status in ('draft','ready','blocked') returning *`; if(!row) throw new WorkflowError('Stale or non-editable task'); result=row; break; }
+ case 'task.delete': { const [row]=await tx`delete from tasks where id=${c.id} and project_id=${c.projectId} and version=${c.version} and status='draft' and not exists (select 1 from task_dependencies where task_id=${c.id} or depends_on_id=${c.id}) returning id`; if(!row) throw new WorkflowError('Stale, non-draft, or linked task'); result=row; break; }
+ case 'task.transition': { const [task]=await tx`select * from tasks where id=${c.id} and project_id=${c.projectId} for update`; if(!task || task.version!==c.version || !canTransition(task.status as TaskState,c.status)) throw new WorkflowError('Invalid or stale transition'); if(['in_progress','done'].includes(c.status)) { const [blocked]=await tx`select 1 from task_dependencies d join tasks t on t.id=d.depends_on_id where d.task_id=${c.id} and t.status <> 'done' limit 1`; if(blocked) throw new WorkflowError('Unmet dependencies'); const [pending]=await tx`select 1 from approval_requests where project_id=${c.projectId} and status <> 'approved' limit 1`; if(pending) throw new WorkflowError('CEO approval required'); } const [row]=await tx`update tasks set status=${c.status},version=version+1 where id=${c.id} returning *`; result=row; break; }
+ case 'dependency.add': case 'dependency.remove': { if(c.taskId===c.dependsOnId) throw new WorkflowError('Self dependency'); const rows=await tx`select id,status from tasks where project_id=${c.projectId} and id in (${c.taskId},${c.dependsOnId})`; if(rows.length!==2) throw new WorkflowError('Tasks must belong to the project'); if(rows.find(r=>r.id===c.taskId)?.status!=='draft') throw new WorkflowError('Dependencies can only change in draft'); if(c.type==='dependency.add') { const edges=await tx`select d.task_id,d.depends_on_id from task_dependencies d join tasks t on t.id=d.task_id where t.project_id=${c.projectId}`; if(hasCycle([...edges.map(e=>[e.task_id,e.depends_on_id] as [string,string]),[c.taskId,c.dependsOnId]])) throw new WorkflowError('Dependency cycle'); const inserted=await tx`insert into task_dependencies (task_id,depends_on_id) values (${c.taskId},${c.dependsOnId}) on conflict do nothing returning id`; if(!inserted.length) throw new WorkflowError('Duplicate dependency'); } else { const removed=await tx`delete from task_dependencies where task_id=${c.taskId} and depends_on_id=${c.dependsOnId} returning id`; if(!removed.length) throw new WorkflowError('Dependency not found'); } result={ok:true}; break; }
+ case 'approval.create': { const [row]=await tx`insert into approval_requests (company_id,project_id,action) values (${company.id},${c.projectId},${c.action}) returning *`; result=row; break; }
+ case 'approval.decide': { const [row]=await tx`update approval_requests set status=${c.status},reason=${c.reason},decided_at=now(),version=version+1 where id=${c.id} and project_id=${c.projectId} and status='pending' and version=${c.version} returning *`; if(!row) throw new WorkflowError('Stale or decided approval'); result=row; break; }
+ }
+ await tx`insert into audit_events (company_id,event) values (${company.id},${JSON.stringify({actor:'CEO',mode:'simulation',projectId,command:c,result})})`; return result;
+ }); }

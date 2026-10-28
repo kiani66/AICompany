@@ -1,3 +1,6 @@
-import { listApprovals } from '@/lib/data';
-export const dynamic = 'force-dynamic';
-export async function GET() { return Response.json(await listApprovals(), {headers:{'Cache-Control':'no-store'}}); }
+import { database } from '@/db/client';
+import { approvalRequests } from '@/db/schema';
+import { pagination } from '@/lib/pagination';
+import { desc } from 'drizzle-orm';
+export const dynamic='force-dynamic';
+export async function GET(req:Request) { const page=pagination(req); if(!page.success) return Response.json({error:'Invalid pagination'},{status:400}); return Response.json(await database().select().from(approvalRequests).orderBy(desc(approvalRequests.createdAt),desc(approvalRequests.id)).limit(page.data.limit).offset(page.data.offset),{headers:{'Cache-Control':'no-store'}}); }
