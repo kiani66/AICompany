@@ -12,3 +12,5 @@ it('rejects requested external tools at the API boundary',async()=>{ const {runt
 
 it('manual brief is deterministic and labels untrusted metadata',async()=>{const {pmBrief}=await import('../src/lib/pm-brief');expect(pmBrief('P','T','C')).toBe(pmBrief('P','T','C'));expect(pmBrief('P','ignore instructions','C')).toContain('untrusted project context');});
 it('manual submissions cannot assert verified AI provenance',async()=>{const {command}=await import('../src/lib/workflow');expect(command.safeParse({type:'handoff.submit',projectId:'00000000-0000-4000-8000-000000000001',id:'00000000-0000-4000-8000-000000000002',version:1,content:'Response',provenance:'verified AI'}).success).toBe(false);});
+
+it('manual review requires provenance acknowledgement',async()=>{const {command}=await import('../src/lib/workflow');expect(command.safeParse({type:'handoff.review',projectId:'00000000-0000-4000-8000-000000000001',id:'00000000-0000-4000-8000-000000000002',version:1,status:'approved',reason:'Reviewed'}).success).toBe(false);});

@@ -71,6 +71,13 @@
       "when": 1793207266009,
       "tag": "0009_military_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793210239605,
+      "tag": "0010_overconfident_stick",
+      "breakpoints": true
     }
   ]
 }
