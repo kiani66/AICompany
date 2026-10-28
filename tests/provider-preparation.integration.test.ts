@@ -51,9 +51,12 @@ it('requires exact consent, reserves budgets atomically, and holds ambiguous moc
   const [hold]=await sql`select count(*)::int as count from provider_preparation_ledger where preparation_id=${initial.id as string} and kind='HOLD'`;
   expect(hold.count).toBe(3);
   await expect(prepareProviderRun({type:'reserve',id:other.id as string,version:2})).rejects.toThrow('Budget unavailable');
+  await sql`update runtime_settings set kill_switch=true`;
+  await expect(prepareProviderRun({type:'reserve',id:other.id as string,version:2})).rejects.toThrow('Kill switch');
   await expect(prepareProviderRun({type:'reconcileUnknown',id:initial.id as string,version:4,evidence:'INVALID',resolution:'verified-no-charge'})).rejects.toThrow();
   const manually=await prepareProviderRun({type:'reconcileUnknown',id:initial.id as string,version:4,evidence:'MOCK-VERIFIED-NOCHARGE',resolution:'verified-no-charge'});
   expect(manually.state).toBe('RECONCILED');
+  await sql`update runtime_settings set kill_switch=false`;
   await expect(prepareProviderRun({type:'reconcileUnknown',id:initial.id as string,version:4,evidence:'MOCK-VERIFIED-NOCHARGE',resolution:'verified-no-charge'})).rejects.toThrow('stale');
   const secondReserved=await prepareProviderRun({type:'reserve',id:other.id as string,version:2});
   expect(secondReserved.state).toBe('RESERVED');
