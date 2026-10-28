@@ -51,6 +51,17 @@ it('requires exact consent, reserves budgets atomically, and holds ambiguous moc
   const [hold]=await sql`select count(*)::int as count from provider_preparation_ledger where preparation_id=${initial.id as string} and kind='HOLD'`;
   expect(hold.count).toBe(3);
   await expect(prepareProviderRun({type:'reserve',id:other.id as string,version:2})).rejects.toThrow('Budget unavailable');
+  await expect(prepareProviderRun({type:'reconcileUnknown',id:initial.id as string,version:4,evidence:'INVALID',resolution:'verified-no-charge'})).rejects.toThrow();
+  const manually=await prepareProviderRun({type:'reconcileUnknown',id:initial.id as string,version:4,evidence:'MOCK-VERIFIED-NOCHARGE',resolution:'verified-no-charge'});
+  expect(manually.state).toBe('RECONCILED');
+  await expect(prepareProviderRun({type:'reconcileUnknown',id:initial.id as string,version:4,evidence:'MOCK-VERIFIED-NOCHARGE',resolution:'verified-no-charge'})).rejects.toThrow('stale');
+  const secondReserved=await prepareProviderRun({type:'reserve',id:other.id as string,version:2});
+  expect(secondReserved.state).toBe('RESERVED');
+  const secondResult=await prepareProviderRun({type:'resolveMock',id:other.id as string,version:3,outcome:'success'});
+  expect(secondResult.state).toBe('RECONCILED');
+  const [usage]=await sql`select used_tokens,reserved_tokens from runtime_budgets where scope='global'`;
+  expect(usage.used_tokens).toBe(2);
+  expect(usage.reserved_tokens).toBe(0);
   expect((await listPreparations()).some(x=>x.id===initial.id)).toBe(true);
   const [tasks]=await sql`select count(*)::int as count from tasks where project_id=${projectId}`;
   const [executions]=await sql`select count(*)::int as count from task_executions`;
