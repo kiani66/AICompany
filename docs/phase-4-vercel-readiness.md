@@ -63,7 +63,7 @@ This is a **necessary but insufficient** privilege check: it does not prove netw
 
 The earlier single CEO-wide limit allowed a different remote attacker to consume the CEO's entire 15-minute login quota. In Vercel production the login route now derives a **per-source** bucket only when `NODE_ENV=production`, the platform-supplied `VERCEL=1`, the approved `APP_ORIGIN` check and the single valid `x-vercel-forwarded-for` IP are all present. The app stores an HMAC-SHA256 bucket digest under the server-only session secret; it never stores the source IP in `login_rate_limits`. Requests without verified origin/deployment configuration or a valid platform IP **fail closed (503)**. In local development, the original `ceo` bucket is retained to preserve tests and avoid trusting arbitrary caller-controlled headers.
 
-Limits: ten login attempts per source per rolling 15-minute bucket, with atomic PostgreSQL UPSERT. This mitigates the *global* CEO login lockout: unrelated IPs cannot consume one shared account-wide bucket. **It does not prevent lockout by another user sharing the same NAT/VPN address**, distributed credential stuffing, or database table growth from rotating IPs. Do not treat per-IP buckets as sufficient brute-force protection.
+Limits: ten login attempts per source within a fifteen-minute fixed-expiry window, with atomic PostgreSQL UPSERT. This mitigates the *global* CEO login lockout: unrelated IPs cannot consume one shared account-wide bucket. **It does not prevent lockout by another user sharing the same NAT/VPN address**, distributed credential stuffing, or database table growth from rotating IPs. Do not treat per-IP buckets as sufficient brute-force protection.
 
 ### Required Vercel WAF operator gate (not configured or authorized yet)
 
