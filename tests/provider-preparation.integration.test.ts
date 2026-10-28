@@ -46,7 +46,7 @@ it('requires exact consent, reserves budgets atomically, and holds ambiguous moc
   await expect(prepareProviderRun({type:'cancel',id:initial.id as string,version:4})).rejects.toThrow('Cannot cancel');
   const [held]=await sql`select reserved_tokens from runtime_budgets where scope='global'`;
   expect(held.reserved_tokens).toBe(20);
-  const [hold]=await sql`select count(*)::int as count from provider_preparation_ledger where preparation_id=${initial.id} and kind='HOLD'`;
+  const [hold]=await sql`select count(*)::int as count from provider_preparation_ledger where preparation_id=${initial.id as string} and kind='HOLD'`;
   expect(hold.count).toBe(3);
   await expect(prepareProviderRun({type:'reserve',id:other.id as string,version:2})).rejects.toThrow('Budget unavailable');
   expect((await listPreparations()).some(x=>x.id===initial.id)).toBe(true);
