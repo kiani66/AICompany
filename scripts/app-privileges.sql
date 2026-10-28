@@ -16,5 +16,6 @@ GRANT SELECT, INSERT ON runtime_denials TO aicompany_app;
 GRANT UPDATE (count, last_seen) ON runtime_denials TO aicompany_app;
 GRANT SELECT, INSERT ON project_plan_proposals TO aicompany_app;
 GRANT UPDATE (status, version, decided_at) ON project_plan_proposals TO aicompany_app;
-GRANT SELECT, INSERT, UPDATE ON provider_run_preparations TO aicompany_app;
+GRANT SELECT, INSERT ON provider_run_preparations TO aicompany_app;
+GRANT UPDATE (state, version, reserved_tokens, reserved_micro_usd, used_tokens, used_micro_usd, outcome_reason, approved_at, updated_at) ON provider_run_preparations TO aicompany_app;
 GRANT SELECT, INSERT ON provider_preparation_ledger TO aicompany_app;
