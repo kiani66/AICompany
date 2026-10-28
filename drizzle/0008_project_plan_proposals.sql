@@ -18,6 +18,6 @@ CREATE TABLE "project_plan_proposals" (
  CONSTRAINT "project_plan_provider_check" CHECK ("provider" = 'local-deterministic-mock' AND "model" = 'deterministic-mock-v1')
 );
 --> statement-breakpoint
-CREATE INDEX "plan_company_created_idx" ON "project_plan_proposals" ("company_id","created_at" DESC,"id" DESC);
+CREATE INDEX "plan_company_created_idx" ON "project_plan_proposals" ("company_id","created_at","id");
 --> statement-breakpoint
 CREATE INDEX "plan_project_idx" ON "project_plan_proposals" ("project_id");
