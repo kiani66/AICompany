@@ -36,3 +36,13 @@ Status: **design/review only**. The existence of this document is NOT permission
 - Vercel plan, pricing, resource choices, actual Vercel project and DB provider are not yet selected or approved.
 - OpenAI subscription-based inference for hosted/private AICompany is not presumed available; paid API billing is separate and disabled.
 - Security gaps from earlier phases (login availability, trusted ingress, application DB role deployment, audit provenance and pagination) remain deployment blockers until addressed and tested.
+
+## Implemented production ingress controls (Phase 4 PR #10)
+
+`src/lib/origin.ts` requires an explicitly configured `APP_ORIGIN` for production and accepts only an absolute HTTPS origin without path/query/fragment. Request Host must exactly match; conflicting `x-forwarded-host` and non-HTTPS `x-forwarded-proto` are denied, never trusted to establish identity. Mutating requests require the exact Origin. Middleware rejects invalid ingress before login and health exceptions. Unit tests cover missing configuration, spoofed headers, protocol downgrades and local development.
+
+**Preview caveat:** Vercel's dynamic preview domains are not automatically accepted. Set `APP_ORIGIN` for the exact, reviewed and stable preview hostname; uncontrolled preview URLs must fail closed. Verify Vercel's actual Host/TLS forwarding using an approved preview before production release. Do not blindly trust `VERCEL_URL` or arbitrary forwarded headers.
+
+`.env.example` contains placeholders only. Keep migration-owner credentials out of the Vercel application. Production cookies are HttpOnly, Secure and SameSite=Strict; server-side session revocation remains required.
+
+**Open blocker:** the account-wide rate limiter permits an attacker to temporarily lock out the CEO after ten attempts within fifteen minutes. Trusted-edge request/IP filtering and a recovery policy require separate review; do not trust arbitrary forwarding IP headers.
