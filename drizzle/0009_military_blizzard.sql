@@ -1,0 +1,2 @@
+ALTER TABLE "pm_artifacts" DROP CONSTRAINT "pm_provenance";--> statement-breakpoint
+ALTER TABLE "pm_artifacts" ADD CONSTRAINT "pm_provenance" CHECK (("pm_artifacts"."revision" = 0 and "pm_artifacts"."provenance" = 'SYSTEM placeholder - no human submission') or ("pm_artifacts"."revision" > 0 and "pm_artifacts"."provenance" = 'CEO-submitted — external analysis not verified'));

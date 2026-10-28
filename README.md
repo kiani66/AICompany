@@ -43,3 +43,5 @@ GitHub is the source of truth; use feature branches and reviewed pull requests. 
 Phase 2 adds a CEO-directed simulation workflow; see [workflow documentation](docs/phase-2.md). No AI employees execute work. Apply new migrations with `npm run db:migrate` before starting the application.
 
 Phase 3A introduces an explicitly controlled fake-provider simulation foundation; read the [runtime ADR](docs/phase-3a-runtime-adr.md) before using it. Real agents, provider calls, tools and autonomous execution remain disabled.
+
+Issue #12 adds a [manual PM handoff](docs/pm-manual-handoff.md): copy a deterministic draft brief, independently perform external analysis, then submit and review an explicitly human-attributed artifact. No subscription, model API or messaging automation is involved.
