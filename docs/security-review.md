@@ -1,8 +1,6 @@
 # Security review and release blockers
 
-The foundation is not production-ready. The process-local throttle is bounded and expired entries are removed, but it trusts an unverified X-Forwarded-For value, can be bypassed by spoofing, is not shared across instances, and can cause denial of service. A trusted ingress must strip untrusted forwarding headers and provide a verified client identity; a shared atomic limiter needs a deployment-specific trusted identity design. A global IP bucket can lock out users behind shared addresses. Do not deploy until a reviewed shared limiter and trusted proxy policy are in place.
-
-Sessions expire after eight hours; logout clears the browser cookie but does not revoke copied tokens. Rotating SESSION_SECRET invalidates every session. Add server-side per-session revocation before production. Origin checks compare scheme and Host; deploy only behind a trusted proxy that validates Host and forwards the correct scheme. CEO approval functions are contracts only, not an enforcement engine.
+The foundation is not production-ready. The account-wide rate limit permits deliberate temporary login denial, and a trusted ingress and security review remain prerequisites. CEO approval functions are future contracts, not an enforcement engine.
 
 ## Dependency audit (initial)
 
@@ -15,3 +13,13 @@ Sessions expire after eight hours; logout clears the browser cookie but does not
 | GHSA-85c8-ppgw-ccpr | vitest > tinypool | 2.1.2 | Test worker prototype pollution can lead to code execution; upgraded Vitest. |
 
 Audit results must be rechecked against the committed lockfile. Dependency advisories are release blockers if still reported; do not process untrusted CSS or run untrusted test code as a mitigation. No AI execution or provider integration is present.
+
+## Account throttling and session changes
+
+Login now uses a single atomic PostgreSQL fixed-window counter: ten attempts per 15 minutes across all instances. No request header or IP is trusted for identity. For the single CEO account, every caller shares this bucket, so spoofed forwarding headers cannot bypass it; a malicious caller can nevertheless deny CEO login for the window. This availability risk requires an ingress-level defense and recovery plan before production. Expired counters are reset atomically; there is only one counter row. Database errors fail closed.
+
+Sessions have random identifiers signed in an eight-hour token and checked against PostgreSQL on every private request. Logout deletes the session record, invalidating copied cookies; expired records are removed during later logins. Secret rotation still invalidates all sessions. In-flight requests already authorized before logout may complete. A compromised signing secret or database remains a serious risk. Use HTTPS and a trusted reverse proxy that validates Host and scheme; never expose an origin that accepts attacker-controlled Host/protocol forwarding. The application does not consume X-Forwarded-For for authentication.
+
+## Remaining moderate audit findings
+
+`npm audit` reports four moderate entries, all from the same development-only advisory GHSA-67mh-4wv8-2f99: `drizzle-kit > @esbuild-kit/esm-loader > @esbuild-kit/core-utils > esbuild` (esbuild <=0.24.2). Its development server permits cross-origin requests to read responses. The three parent packages are affected transitively; npm reports no compatible automatic fix for the pinned Drizzle Kit chain. This application does not use that dependency's development server. Do not expose it or run untrusted code during development; upgrade Drizzle Kit when a compatible patched dependency chain is available, then rerun migration and CI checks. These are development dependencies, not runtime inference or provider services.

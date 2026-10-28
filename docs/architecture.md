@@ -12,10 +12,12 @@ Company owns agents, projects, approvals, audit events and usage records. AgentC
 
 ## Security and cost
 
-Set a unique high-entropy CEO password hash and a random session secret securely in the runtime environment. Rotate the session secret to invalidate sessions. Do not expose production data or credentials in this public repository. The process-local login throttle is only a development safeguard, not a distributed rate limiter; production requires a trusted reverse proxy and shared rate limiting, plus security review. Use HTTPS in production. Proxy origin/host handling must be configured safely. AI execution and network providers are absent, so Phase 1 incurs no AI usage cost. Do not provision paid services.
+Set a unique high-entropy CEO password hash and a random session secret securely in the runtime environment. Rotate the session secret to invalidate sessions. Do not expose production data or credentials in this public repository. The PostgreSQL account-wide limiter requires an ingress availability defense and security review before production. Use HTTPS in production. Proxy origin/host handling must be configured safely. AI execution and network providers are absent, so Phase 1 incurs no AI usage cost. Do not provision paid services.
 
 Vercel Hobby is intended for personal non-commercial development/testing only; commercial use requires a permitted plan or host. No deployment is authorized. This app remains portable to another Node/PostgreSQL host.
 
 ## Phase 2 backlog
 
 Design and review durable authentication/rate limiting and audit logging, authorization and approval persistence, transactional dependency validation, a safe runner and checkpoint recovery, provider adapters, cost controls, monitoring, and operational deployment. Interfaces in Phase 1 are contracts only; they are not a runner and cannot resume work. No customer projects should be created before separate approval.
+
+Authentication uses a PostgreSQL-backed account-wide fixed window and persisted revocable sessions. Forwarded IP headers are not identity. The shared CEO bucket can be deliberately exhausted, so availability defenses and trusted proxy Host/scheme configuration remain deployment prerequisites. See the security review for limits and audit findings.
