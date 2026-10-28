@@ -70,7 +70,11 @@ export default function ProviderPreparationPage(){
        <button className="rounded border p-2" disabled={busy} onClick={()=>void send({type:'resolveMock',id:p.id,version:p.version,outcome:'timeout'})}>Simulate unknown timeout</button>
      </div>}
      {['PREVIEWED','APPROVED','RESERVED'].includes(p.state)&&<button className="rounded border p-2" disabled={busy} onClick={()=>void send({type:'cancel',id:p.id,version:p.version})}>Cancel mock preparation</button>}
-     {p.state==='UNRESOLVED'&&<p>Reservation held pending independently verified operator reconciliation. No automatic release or retry.</p>}
+     {p.state==='UNRESOLVED'&&<div className="space-y-2 rounded border border-amber-300 p-2">
+       <p>Reservation held pending explicit operator review. No automatic release or retry. Synthetic mock evidence only; this is NOT real-provider reconciliation.</p>
+       <button disabled={busy} className="rounded border p-2" onClick={()=>void send({type:'reconcileUnknown',id:p.id,version:p.version,evidence:'MOCK-VERIFIED-NOCHARGE',resolution:'verified-no-charge'})}>Verify mock no charge and release reservation</button>
+       <button disabled={busy} className="rounded border p-2" onClick={()=>void send({type:'reconcileUnknown',id:p.id,version:p.version,evidence:'MOCK-VERIFIED-USAGE',resolution:'verified-mock-usage'})}>Verify 2 mock tokens used</button>
+     </div>}
    </div>)}
    </section>
  </div>;
