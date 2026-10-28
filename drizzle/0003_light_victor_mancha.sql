@@ -1,0 +1,3 @@
+ALTER TABLE "approval_requests" ADD COLUMN "supersedes_id" uuid;--> statement-breakpoint
+ALTER TABLE "approval_requests" ADD CONSTRAINT "approval_requests_supersedes_id_approval_requests_id_fk" FOREIGN KEY ("supersedes_id") REFERENCES "public"."approval_requests"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "approval_requests" ADD CONSTRAINT "approval_requests_supersedes_id_unique" UNIQUE("supersedes_id");
