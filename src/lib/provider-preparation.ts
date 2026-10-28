@@ -25,7 +25,7 @@ export async function prepareProviderRun(input:PrepareCommand){
    await tx`select pg_advisory_xact_lock(hashtextextended('aicompany-runtime',0))`;
    const company=await companyId(tx);
    const [settings]=await tx`select kill_switch from runtime_settings where company_id=${company}`;
-   if(!settings||settings.kill_switch!==false)throw new PreparationError('Kill switch prevents preparation');
+   if(!settings||(settings.kill_switch!==false && !['cancel','reconcileUnknown'].includes(c.type)))throw new PreparationError('Kill switch prevents preparation');
    let result:Record<string,unknown>;
    if(c.type==='prepare'){
      const digest=reviewDigest(c.envelope);
