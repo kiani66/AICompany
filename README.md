@@ -41,3 +41,5 @@ For E2E use an isolated test database already migrated and seeded, with `CEO_PAS
 GitHub is the source of truth; use feature branches and reviewed pull requests. Never merge, deploy, activate agents, or spend without CEO approval. Vercel Hobby is suitable only for personal non-commercial development/testing; no deployment is part of this phase.
 
 Phase 2 adds a CEO-directed simulation workflow; see [workflow documentation](docs/phase-2.md). No AI employees execute work. Apply new migrations with `npm run db:migrate` before starting the application.
+
+Phase 3A introduces an explicitly controlled fake-provider simulation foundation; read the [runtime ADR](docs/phase-3a-runtime-adr.md) before using it. Real agents, provider calls, tools and autonomous execution remain disabled.

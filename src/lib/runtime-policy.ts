@@ -1,0 +1,5 @@
+export type PolicyInput = { simulation:boolean; ceo:boolean; agentDisabled:boolean; approved:boolean; killSwitch:boolean; dependenciesMet:boolean; budgetAvailable:boolean; tools:readonly string[] };
+export function evaluatePolicy(p:PolicyInput) { const reasons:string[]=[]; if(!p.simulation) reasons.push('Real execution disabled'); if(!p.ceo) reasons.push('CEO authorization required'); if(!p.agentDisabled) reasons.push('Agent must remain disabled'); if(!p.approved) reasons.push('CEO approval required'); if(p.killSwitch) reasons.push('Kill switch enabled'); if(!p.dependenciesMet) reasons.push('Unmet dependencies'); if(!p.budgetAvailable) reasons.push('Budget unavailable'); if(p.tools.length) reasons.push('Tools are disabled'); return {allowed:reasons.length===0,reasons}; }
+export interface SimulationProvider { simulate(): {tokens:number;microUsd:number;evidence:string} }
+export const fakeProvider:SimulationProvider={simulate:()=>({tokens:1,microUsd:0,evidence:'deterministic-fake-provider-v1'})};
+export const enabledToolCapabilities:readonly string[] = [];

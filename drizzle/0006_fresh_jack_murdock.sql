@@ -1,0 +1,1 @@
+ALTER TABLE "simulation_ledger" ADD COLUMN "evidence" text;

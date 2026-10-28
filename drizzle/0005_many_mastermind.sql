@@ -1,0 +1,2 @@
+ALTER TABLE "simulation_runs" ADD COLUMN "fake_outcome" text DEFAULT 'success' NOT NULL;--> statement-breakpoint
+ALTER TABLE "simulation_runs" ADD CONSTRAINT "simulation_fake_outcome" CHECK ("simulation_runs"."fake_outcome" in ('success','failure'));
