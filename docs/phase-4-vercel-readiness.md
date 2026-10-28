@@ -46,3 +46,15 @@ Status: **design/review only**. The existence of this document is NOT permission
 `.env.example` contains placeholders only. Keep migration-owner credentials out of the Vercel application. Production cookies are HttpOnly, Secure and SameSite=Strict; server-side session revocation remains required.
 
 **Open blocker:** the account-wide rate limiter permits an attacker to temporarily lock out the CEO after ten attempts within fifteen minutes. Trusted-edge request/IP filtering and a recovery policy require separate review; do not trust arbitrary forwarding IP headers.
+
+## Non-destructive runtime database preflight
+
+After the migration owner runs reviewed migrations and `scripts/app-privileges.sql`, set `DATABASE_URL` to the actual **runtime** connection (NOT the migration owner) in an approved, secure operator environment and run:
+
+```sh
+npm run db:runtime-check
+```
+
+The command makes read-only PostgreSQL catalog queries. It fails when the connected role is a superuser, can create roles/databases/schema objects, bypasses row-level security, owns application tables, can truncate application tables, can update/delete audit history, or lacks audit read/insert privileges. It does not print the connection string or password.
+
+This is a **necessary but insufficient** privilege check: it does not prove network/TLS configuration, role inheritance, all individual column grants, sequence ownership, migration history, or non-owner application operation. A controlled runtime login integration test and independent security review remain mandatory before deployment. Never run this preflight with production credentials in public CI logs.
