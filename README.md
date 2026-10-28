@@ -39,3 +39,5 @@ npm run test:e2e
 For E2E use an isolated test database already migrated and seeded, with `CEO_PASSWORD_HASH` generated from `TEST_CEO_PASSWORD`. The Playwright test starts a local development server. CI supplies a disposable PostgreSQL service and test-only credentials. `npm run db:generate` generates migrations after schema changes; inspect and commit them. `npm start` starts a built application. The health endpoint returns process status only; other endpoints require a session.
 
 GitHub is the source of truth; use feature branches and reviewed pull requests. Never merge, deploy, activate agents, or spend without CEO approval. Vercel Hobby is suitable only for personal non-commercial development/testing; no deployment is part of this phase.
+
+Phase 2 adds a CEO-directed simulation workflow; see [workflow documentation](docs/phase-2.md). No AI employees execute work. Apply new migrations with `npm run db:migrate` before starting the application.

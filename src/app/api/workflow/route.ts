@@ -1,0 +1,4 @@
+import { NextRequest } from 'next/server';
+import { sameOrigin } from '@/lib/origin';
+import { command, executeCommand, WorkflowError } from '@/lib/workflow';
+export async function POST(req:NextRequest) { if(!sameOrigin(req,req.headers.get('origin'))) return Response.json({error:'Invalid origin'},{status:403}); let body:unknown; try { body=await req.json(); } catch {return Response.json({error:'Invalid JSON'},{status:400});} const parsed=command.safeParse(body); if(!parsed.success) return Response.json({error:'Invalid command'},{status:400}); try { return Response.json(await executeCommand(parsed.data),{headers:{'Cache-Control':'no-store'}}); } catch(e) { if(e instanceof WorkflowError) return Response.json({error:e.message},{status:409}); console.error('Workflow transaction failed',e); return Response.json({error:'Workflow unavailable'},{status:503}); } }
