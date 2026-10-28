@@ -81,6 +81,9 @@ it('guards provider preparation ledger as append-only for app role',async()=>{
   await sql.unsafe(readFileSync('scripts/app-privileges.sql','utf8'));
   for(const statement of [
     'update provider_preparation_ledger set kind=kind',
+    'update provider_run_preparations set review_envelope=review_envelope',
+    'update provider_run_preparations set review_digest=review_digest',
+    'update provider_run_preparations set idempotency_key=idempotency_key',
     'delete from provider_preparation_ledger',
     'truncate provider_preparation_ledger',
     'create table provider_privilege_probe(id integer)',
