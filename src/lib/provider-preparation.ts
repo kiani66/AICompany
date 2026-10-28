@@ -54,11 +54,17 @@ export async function prepareProviderRun(input:PrepareCommand){
      const [project]=await tx`select status from projects where id=${run.project_id} and company_id=${company}`;
      const [proposal]=await tx`select status,snapshot,snapshot_sha256 from project_plan_proposals where id=${run.proposal_id} and company_id=${company}`;
      const [agent]=await tx`select execution_enabled from agents where id=${run.agent_id} and company_id=${company}`;
-     if(!project||project.status!=='active'||!proposal||proposal.status!=='ACCEPTED'||!agent||agent.execution_enabled)
+     // Emergency release/reconciliation must remain possible after project archive
+     // or agent-policy changes; it never authorizes a fresh provider dispatch.
+     const safeExit=c.type==='cancel'||c.type==='reconcileUnknown';
+     if(!project||!proposal||!agent||(!safeExit&&(project.status!=='active'||proposal.status!=='ACCEPTED'||agent.execution_enabled)))
        throw new PreparationError('Policy boundary changed');
+     if(!safeExit){
+       const envelope=outboundReview.parse(JSON.parse(run.review_envelope));
+       if(snapshotDigest(proposal.snapshot)!==proposal.snapshot_sha256||reviewDigest(envelope)!==run.review_digest)
+         throw new PreparationError('Consent envelope changed');
+     }
      const envelope=outboundReview.parse(JSON.parse(run.review_envelope));
-     if(snapshotDigest(proposal.snapshot)!==proposal.snapshot_sha256||reviewDigest(envelope)!==run.review_digest)
-       throw new PreparationError('Consent envelope changed');
      if(c.type==='approve'){
        if(run.state!=='PREVIEWED'||run.review_digest!==c.digest)throw new PreparationError('Exact consent mismatch');
        const [updated]=await tx`update provider_run_preparations set state='APPROVED',approved_at=now(),version=version+1,updated_at=now() where id=${run.id} returning *`;
