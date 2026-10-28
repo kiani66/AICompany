@@ -18,3 +18,13 @@ The application DB role may insert and read proposal records and update only `st
 **Privacy boundary:** The source description is stored as plaintext for CEO review. The UI explicitly warns to use synthetic data only; neither bounded length nor a checkbox guarantees redaction. Do not store customer documents or secrets in this prototype. Access and deletion/retention policy must be designed and verified before any sensitive input is permitted.
 
 **Still incomplete:** no real-provider adapter or execution activation, immutable consent bound to a billable request, real cost estimates/reservations, uncertain-billing recovery, provider reconciliation, concurrency limits for provider calls, real execution authorization, or production security acceptance. Existing Phase 1/2/3A blockers remain. A mocked proposal preview is not a real AI run and never signifies CEO authorization to spend.
+
+
+## Non-executing future-provider contract
+
+`src/lib/provider-boundary.ts` now defines a validated outbound review envelope bound to the exact input digest, provider/model identity, pricing version, permitted capabilities (empty), token ceilings and maximum approved micro-USD charge. The envelope digest is **not** an authorization token or proof of CEO consent. Future implementation must persist the independently approved envelope and compare it transactionally at the actual execution boundary against the exact outgoing payload. The current Project Manager mock proposal acknowledgement is only permission to store synthetic preview data; it is NOT approval to call a paid provider.
+
+The provider-outcome accounting contract distinguishes verified completion from verified no-charge and ambiguous outcomes. TIMEOUT/CONNECTION_LOST/UNKNOWN_RESPONSE and usage exceeding reserved amount map to HOLD_FOR_REVIEW with no automatic retry. These are tested pure policy contracts, **not yet integrated** with database reservations or real provider calls. Real inference remains hard-disabled and no endpoint, key, SDK or callable adapter is configured.
+
+### Additional verification work
+The initial E2E run for the new saved-input display failed due to an ambiguous Playwright text locator (textarea and paragraph contained the same value), not a demonstrated storage failure. The locator was scoped to the persisted-display paragraph and requires a fresh CI pass. Do not mark this phase as accepted before all current-head checks pass.
