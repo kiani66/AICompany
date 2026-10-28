@@ -26,6 +26,8 @@ test('CEO previews, saves, and reviews mock plan without creating work or callin
     await page.getByRole('checkbox').check();
     await page.getByRole('button',{name:'Save mock proposal for review'}).click();
     await expect(page.getByText('Mock proposal saved for review. No tasks were created.')).toBeVisible();
+    await expect(page.getByText('Exact saved input (synthetic only)')).toBeVisible();
+    await expect(page.getByText('Synthetic test: prepare a mock project plan.')).toBeVisible();
     const [row]=await sql`select id,version,status from project_plan_proposals where project_id=${projectId}`;
     proposalId=row.id;
     expect(row.status).toBe('REVIEW_REQUIRED');
