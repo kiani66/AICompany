@@ -50,6 +50,13 @@
       "when": 1793179604077,
       "tag": "0006_fresh_jack_murdock",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793183487846,
+      "tag": "0007_foamy_firelord",
+      "breakpoints": true
     }
   ]
 }

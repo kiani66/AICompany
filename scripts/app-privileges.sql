@@ -12,3 +12,5 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON login_rate_limits TO aicompany_app;
 GRANT SELECT, INSERT ON audit_events TO aicompany_app;
 GRANT SELECT, INSERT, UPDATE ON runtime_settings, runtime_budgets, simulation_runs TO aicompany_app;
 GRANT SELECT, INSERT ON simulation_ledger TO aicompany_app;
+GRANT SELECT, INSERT ON runtime_denials TO aicompany_app;
+GRANT UPDATE (count, last_seen) ON runtime_denials TO aicompany_app;
