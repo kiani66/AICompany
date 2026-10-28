@@ -57,6 +57,20 @@
       "when": 1793183487846,
       "tag": "0007_foamy_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793190000000,
+      "tag": "0008_project_plan_proposals",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793191000000,
+      "tag": "0009_provider_run_preparations",
+      "breakpoints": true
     }
   ]
 }
