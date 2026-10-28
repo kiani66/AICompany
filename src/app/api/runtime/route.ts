@@ -1,0 +1,4 @@
+import { NextRequest } from 'next/server';
+import { sameOrigin } from '@/lib/origin';
+import { runtime,runtimeCommand,RuntimeError } from '@/lib/runtime';
+export async function POST(req:NextRequest){ if(!sameOrigin(req,req.headers.get('origin'))) return Response.json({error:'Invalid origin'},{status:403}); let data:unknown; try{data=await req.json();}catch{return Response.json({error:'Invalid JSON'},{status:400});} const c=runtimeCommand.safeParse(data); if(!c.success)return Response.json({error:'Invalid command'},{status:400}); try{return Response.json(await runtime(c.data),{headers:{'Cache-Control':'no-store'}});}catch(e){if(e instanceof RuntimeError)return Response.json({error:e.message},{status:409});console.error('Runtime transaction failed',e);return Response.json({error:'Runtime unavailable'},{status:503});}}
