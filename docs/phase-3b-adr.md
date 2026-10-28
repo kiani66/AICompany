@@ -28,3 +28,22 @@ The provider-outcome accounting contract distinguishes verified completion from 
 
 ### Additional verification work
 The initial E2E run for the new saved-input display failed due to an ambiguous Playwright text locator (textarea and paragraph contained the same value), not a demonstrated storage failure. The locator was scoped to the persisted-display paragraph and requires a fresh CI pass. Do not mark this phase as accepted before all current-head checks pass.
+
+
+## Durable preparation and reconciliation rehearsal
+
+`/provider-preparations` exposes an isolated **non-executing** request lifecycle for CEO review: PREVIEWED → APPROVED (exact envelope digest and version) → RESERVED (global/project/Project Manager atomic budget holds) → RECONCILED or UNRESOLVED. A duplicate idempotency key returns the original preparation only if the envelope and proposal match; a changed payload fails. The snapshot digest is rechecked against the saved, accepted project plan, and the lock order matches the Phase 3A runtime. The policy refuses any provider/model except fixed local deterministic mock and requires a 0 micro-USD mock ceiling. All real inference is hard-disabled in `DisabledRealPlanAdapter` before transport invocation. Neither approval nor reservation constitutes real-billing authorization.
+
+Only local mock `success`, confirmed `no-charge`, and mock `timeout` transitions exist. Timeout preserves the token/currency reservation and appends a HOLD event, never automatically retries or releases funds. Recovery requires an explicit CEO operator decision with a synthetic `MOCK-...` evidence reference; it records reconciliation in the append-only preparation ledger. Kill switch prevents preparation/reservation/approval but permits cancellation and operator reconciliation to release already-held mock reservations. This synthetic process is NOT evidence that a real provider billed (or did not bill); before activation implement independent provider usage retrieval, reconciliation receipts, and external audit provenance.
+
+The application DB role can read/insert preparations but cannot edit the immutable consent envelope, digest, key or linkage; updates are column-scoped to state and usage. The ledger is SELECT/INSERT only. Reapply grants using the migration owner and test actual non-owner credential privileges. A compromised application can still fabricate inserts, state changes, ledger entries and reconciliation evidence within its grants. Database owners can edit all records. This design is a guarded development rehearsal, not production security sign-off.
+
+### Explicit activation blockers
+
+- No approved provider/model or live API key; the real adapter is deliberately uncallable and never sends a request.
+- No persisted authorization to spend on a real billable invocation; current PREVIEWED/APPROVED are mock-only and must not be reused as production consent.
+- No real request dispatcher, response storage, pricing reconciliation or operator evidence verification. Provider request IDs and irreversible cost settlement need an independently reviewed design.
+- No automatic calls, scheduled work, code execution, external tools, filesystem, GitHub modifications or AI agent activation.
+- Phase 1 trusted ingress/login-availability, Phase 2 server-side pagination and runtime DB privilege deployment, Phase 3A retention/provenance limitations remain.
+- Synthetic input is still stored as plaintext. Define privacy, retention and deletion before customer data.
+- Full green CI of the final SHA is required before development-only merge; CEO separately approves that merge. Future provider activation and spending require their own explicit CEO approval.
