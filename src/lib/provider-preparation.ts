@@ -10,6 +10,7 @@ export const prepareCommand=z.discriminatedUnion('type',[
  z.object({type:z.literal('reserve'),id:uuid,version:z.number().int().positive()}).strict(),
  z.object({type:z.literal('resolveMock'),id:uuid,version:z.number().int().positive(),outcome:z.enum(['success','no-charge','timeout'])}).strict(),
  z.object({type:z.literal('cancel'),id:uuid,version:z.number().int().positive()}).strict(),
+ z.object({type:z.literal('reconcileUnknown'),id:uuid,version:z.number().int().positive(),evidence:z.string().regex(/^MOCK-[A-Z0-9-]{5,64}$/),resolution:z.enum(['verified-no-charge','verified-mock-usage'])}).strict(),
 ]);
 export type PrepareCommand=z.infer<typeof prepareCommand>;
 export class PreparationError extends Error {}
@@ -74,6 +75,18 @@ export async function prepareProviderRun(input:PrepareCommand){
          await tx`insert into provider_preparation_ledger (preparation_id,scope,kind,tokens,micro_usd) values (${run.id},${scope},'RESERVE',${tokens},${amount})`;
        }
        const [updated]=await tx`update provider_run_preparations set state='RESERVED',reserved_tokens=${tokens},reserved_micro_usd=${amount},version=version+1,updated_at=now() where id=${run.id} returning *`;
+       result=updated;
+     }else if(c.type==='reconcileUnknown'){
+       if(run.state!=='UNRESOLVED')throw new PreparationError('Only unresolved preparations can be reconciled');
+       // Explicit CEO operator evidence is required; this remains a mock rehearsal.
+       // Real provider reconciliation needs independently verified provider records.
+       const usedTokens=c.resolution==='verified-mock-usage'?2:0;
+       if(usedTokens>run.reserved_tokens)throw new PreparationError('Usage exceeds reserved tokens');
+       for(const scope of ['global',`project:${run.project_id}`,`agent:${run.agent_id}`]){
+         await tx`update runtime_budgets set reserved_tokens=reserved_tokens-${run.reserved_tokens},reserved_micro_usd=reserved_micro_usd-${run.reserved_micro_usd},used_tokens=used_tokens+${usedTokens} where scope=${scope}`;
+         await tx`insert into provider_preparation_ledger(preparation_id,scope,kind,tokens,micro_usd,evidence) values (${run.id},${scope},${c.resolution==='verified-no-charge'?'RELEASE':'RECONCILE'},${usedTokens},0,${c.evidence})`;
+       }
+       const [updated]=await tx`update provider_run_preparations set state='RECONCILED',used_tokens=${usedTokens},outcome_reason='MOCK_OPERATOR_RECONCILED',version=version+1,updated_at=now() where id=${run.id} returning *`;
        result=updated;
      }else if(c.type==='cancel'){
        if(!['PREVIEWED','APPROVED','RESERVED'].includes(run.state))throw new PreparationError('Cannot cancel unresolved or final preparation');
