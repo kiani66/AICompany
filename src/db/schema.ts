@@ -46,3 +46,44 @@ export const projectPlanProposals = pgTable('project_plan_proposals', {
   check('project_plan_snapshot_len_check', sql`char_length(${t.snapshot}) between 1 and 2000`),
   check('project_plan_provider_check', sql`${t.provider} = 'local-deterministic-mock' and ${t.model} = 'deterministic-mock-v1'`),
 ]);
+
+
+export const providerRunPreparations = pgTable('provider_run_preparations', {
+ id:id(),
+ companyId:uuid('company_id').notNull().references(()=>companies.id),
+ projectId:uuid('project_id').notNull().references(()=>projects.id),
+ proposalId:uuid('proposal_id').notNull().references(()=>projectPlanProposals.id),
+ agentId:uuid('agent_id').notNull().references(()=>agents.id),
+ idempotencyKey:uuid('idempotency_key').notNull().unique(),
+ reviewEnvelope:text('review_envelope').notNull(),
+ reviewDigest:text('review_digest').notNull(),
+ state:text('state').notNull().default('PREVIEWED'),
+ version:integer('version').notNull().default(1),
+ reservedTokens:integer('reserved_tokens').notNull().default(0),
+ reservedMicroUsd:integer('reserved_micro_usd').notNull().default(0),
+ usedTokens:integer('used_tokens').notNull().default(0),
+ usedMicroUsd:integer('used_micro_usd').notNull().default(0),
+ outcomeReason:text('outcome_reason'),
+ approvedAt:timestamp('approved_at',{withTimezone:true}),
+ createdAt:created(),
+ updatedAt:timestamp('updated_at',{withTimezone:true}).defaultNow().notNull(),
+},t=>[
+ index('preparation_project_idx').on(t.projectId,t.createdAt,t.id),
+ check('preparation_state',sql`${t.state} in ('PREVIEWED','APPROVED','RESERVED','RECONCILED','UNRESOLVED','CANCELLED')`),
+ check('preparation_version',sql`${t.version} > 0`),
+ check('preparation_accounting',sql`${t.reservedTokens} >= 0 and ${t.reservedMicroUsd} >= 0 and ${t.usedTokens} >= 0 and ${t.usedMicroUsd} >= 0`),
+]);
+export const providerPreparationLedger=pgTable('provider_preparation_ledger',{
+ id:id(),
+ preparationId:uuid('preparation_id').notNull().references(()=>providerRunPreparations.id),
+ scope:text('scope').notNull(),
+ kind:text('kind').notNull(),
+ tokens:integer('tokens').notNull(),
+ microUsd:integer('micro_usd').notNull(),
+ evidence:text('evidence'),
+ createdAt:created(),
+},t=>[
+ index('preparation_ledger_run_idx').on(t.preparationId,t.createdAt,t.id),
+ check('preparation_ledger_kind',sql`${t.kind} in ('RESERVE','RELEASE','RECONCILE','HOLD')`),
+ check('preparation_ledger_amounts',sql`${t.tokens} >= 0 and ${t.microUsd} >= 0`),
+]);
