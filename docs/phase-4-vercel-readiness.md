@@ -58,3 +58,28 @@ npm run db:runtime-check
 The command makes read-only PostgreSQL catalog queries. It fails when the connected role is a superuser, can create roles/databases/schema objects, bypasses row-level security, owns application tables, can truncate application tables, can update/delete audit history, or lacks audit read/insert privileges. It does not print the connection string or password.
 
 This is a **necessary but insufficient** privilege check: it does not prove network/TLS configuration, role inheritance, all individual column grants, sequence ownership, migration history, or non-owner application operation. A controlled runtime login integration test and independent security review remain mandatory before deployment. Never run this preflight with production credentials in public CI logs.
+
+## Phase 4 hardened login-source limiter (implemented, pending ingress verification)
+
+The earlier single CEO-wide limit allowed a different remote attacker to consume the CEO's entire 15-minute login quota. In Vercel production the login route now derives a **per-source** bucket only when `NODE_ENV=production`, the platform-supplied `VERCEL=1`, the approved `APP_ORIGIN` check and the single valid `x-vercel-forwarded-for` IP are all present. The app stores an HMAC-SHA256 bucket digest under the server-only session secret; it never stores the source IP in `login_rate_limits`. Requests without verified origin/deployment configuration or a valid platform IP **fail closed (503)**. In local development, the original `ceo` bucket is retained to preserve tests and avoid trusting arbitrary caller-controlled headers.
+
+Limits: ten login attempts per source per rolling 15-minute bucket, with atomic PostgreSQL UPSERT. This mitigates the *global* CEO login lockout: unrelated IPs cannot consume one shared account-wide bucket. **It does not prevent lockout by another user sharing the same NAT/VPN address**, distributed credential stuffing, or database table growth from rotating IPs. Do not treat per-IP buckets as sufficient brute-force protection.
+
+### Required Vercel WAF operator gate (not configured or authorized yet)
+
+Before permitting public internet traffic:
+1. In the correct Vercel account/project, review the supported plan, WAF rate-limit availability and **pricing** with the CEO. Creating/publishing a firewall rule requires its own authorization.
+2. Define a narrowly scoped rule for **POST /api/login** with IP (or IP+JA4) source rate limiting; begin with logging/challenge where supported, validate legitimate sign-in and then switch to a protective response on clear abuse. Avoid using client-controlled custom headers as the rate-limit key.
+3. Inspect WAF logs and test requests from two independent addresses, malformed `x-vercel-forwarded-for`, credential stuffing, and recovery after expiry. Verify actual Vercel behavior for forwarded headers. Prefer Vercel Deployment Protection for Preview if available.
+4. Set an alert and a **manual, audited** cleanup/retention policy for expired `login_rate_limits` rows. Never add a broad unauthenticated reset endpoint. If a source NAT becomes temporarily blocked, the CEO needs a documented out-of-band recovery route.
+5. Re-evaluate account-based MFA before production exposure. The current single password is not equivalent to MFA.
+
+Official references: https://vercel.com/docs/headers/request-headers and https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting
+
+## Phase 4 pooled Postgres connections (implemented, production verification required)
+
+`src/db/client.ts` owns a shared warm-instance `postgres.js` client used by Drizzle, workflow and the fake runtime. Vercel instances limit this in-process pool to two connections (five in development), with five-second connection timeout and twenty-second idle timeout. This avoids opening three independent five-connection pools *within the same function instance*. It is **not a global concurrency cap**: each scaled-out instance can create its own connections. Production must use a managed transaction/connection pooler appropriate to the Postgres host, with monitored connection limits and TLS enforcement. Validate its transaction/advisory-lock support against Phase 3A before approving deployment; changing the driver or pooling mode could affect transaction locks.
+
+`DATABASE_MIGRATION_URL` is forbidden in application production runtime. Migration owner credentials belong only in an explicitly approved out-of-band migration operation; the least-privilege preflight remains required. Vercel currently connects PostgreSQL through external Marketplace integrations rather than providing a new Vercel Postgres database itself.
+
+Official references: https://vercel.com/kb/guide/connection-pooling-with-functions and https://vercel.com/docs/postgres
