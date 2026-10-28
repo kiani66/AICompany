@@ -17,5 +17,5 @@ export function loginAttemptBucket(req: NextRequest): string | null {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 32) return null;
   // Store a keyed digest rather than exposing the IP in the database.
-  return 'ceo-ip:' + createHmac('sha256', secret).update(raw).digest('hex');
+  return 'ceo-ip:' + createHmac('sha256', secret).update('aicompany/login-bucket/v1:').update(raw).digest('hex');
 }
