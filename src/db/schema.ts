@@ -22,3 +22,27 @@ export const simulationRuns = pgTable('simulation_runs', { id:id(), companyId:uu
 export const simulationLedger = pgTable('simulation_ledger', { id:id(), runId:uuid('run_id').notNull().references(()=>simulationRuns.id), scope:text('scope').notNull(), kind:text('kind').notNull(), evidence:text('evidence'), tokens:integer('tokens').notNull(), microUsd:integer('micro_usd').notNull(), createdAt:created() },t=>[check('ledger_kind',sql`${t.kind} in ('RESERVE','RELEASE','RECONCILE')`),index('ledger_run_idx').on(t.runId)]);
 
 export const runtimeDenials = pgTable('runtime_denials', { id:id(), companyId:uuid('company_id').notNull().references(()=>companies.id), actor:text('actor').notNull(), operation:text('operation').notNull(), reason:text('reason').notNull(), policyVersion:text('policy_version').notNull(), context:text('context').notNull(), windowStart:timestamp('window_start',{withTimezone:true}).notNull(), lastSeen:timestamp('last_seen',{withTimezone:true}).defaultNow().notNull(), count:integer('count').notNull().default(1) },t=>[uniqueIndex('denial_bucket_unique').on(t.companyId,t.operation,t.reason,t.windowStart),check('denial_count_positive',sql`${t.count} > 0`)]);
+
+
+export const projectPlanProposals = pgTable('project_plan_proposals', {
+  id: id(),
+  companyId: uuid('company_id').notNull().references(() => companies.id),
+  projectId: uuid('project_id').notNull().references(() => projects.id),
+  actor: text('actor').notNull().default('CEO'),
+  provider: text('provider').notNull().default('local-deterministic-mock'),
+  model: text('model').notNull().default('deterministic-mock-v1'),
+  snapshot: text('snapshot').notNull(),
+  snapshotSha256: text('snapshot_sha256').notNull(),
+  proposal: text('proposal').notNull(),
+  status: text('status').notNull().default('REVIEW_REQUIRED'),
+  version: integer('version').notNull().default(1),
+  createdAt: created(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+}, t => [
+  index('plan_company_created_idx').on(t.companyId, t.createdAt, t.id),
+  index('plan_project_idx').on(t.projectId),
+  check('project_plan_status_check', sql`${t.status} in ('REVIEW_REQUIRED','ACCEPTED','REJECTED')`),
+  check('project_plan_version_check', sql`${t.version} > 0`),
+  check('project_plan_snapshot_len_check', sql`char_length(${t.snapshot}) between 1 and 2000`),
+  check('project_plan_provider_check', sql`${t.provider} = 'local-deterministic-mock' and ${t.model} = 'deterministic-mock-v1'`),
+]);
