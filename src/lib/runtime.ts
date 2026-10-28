@@ -6,7 +6,7 @@ const id=z.string().uuid(), version=z.number().int().positive();
 export const runtimeCommand=z.discriminatedUnion('type',[
  z.object({type:z.literal('kill'),enabled:z.boolean()}),
  z.object({type:z.literal('budget'),scope:z.string().regex(/^(global|project:[0-9a-f-]{36}|agent:[0-9a-f-]{36})$/i),tokens:z.number().int().min(0).max(100000000),microUsd:z.number().int().min(0).max(100000000)}),
- z.object({type:z.literal('request'),projectId:id,taskId:id,agentId:id,key:z.string().uuid(),tokens:z.number().int().min(1).max(1000000),microUsd:z.number().int().min(0).max(1000000),fakeOutcome:z.enum(['success','failure']).default('success')}),
+ z.object({type:z.literal('request'),projectId:id,taskId:id,agentId:id,key:z.string().uuid(),tokens:z.number().int().min(1).max(1000000),microUsd:z.number().int().min(0).max(1000000),fakeOutcome:z.enum(['success','failure']).default('success')}).strict(),
  z.object({type:z.literal('approve'),id,version}),z.object({type:z.literal('queue'),id,version}),z.object({type:z.literal('start'),id,version}),z.object({type:z.literal('simulate'),id,version}),z.object({type:z.literal('cancel'),id,version}),
 ]);
 export type RuntimeCommand=z.infer<typeof runtimeCommand>;
