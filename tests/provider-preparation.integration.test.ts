@@ -52,11 +52,13 @@ it('requires exact consent, reserves budgets atomically, and holds ambiguous moc
   expect(hold.count).toBe(3);
   await expect(prepareProviderRun({type:'reserve',id:other.id as string,version:2})).rejects.toThrow('Budget unavailable');
   await sql`update runtime_settings set kill_switch=true`;
+  await sql`update projects set status='archived' where id=${projectId}`;
   await expect(prepareProviderRun({type:'reserve',id:other.id as string,version:2})).rejects.toThrow('Kill switch');
   await expect(prepareProviderRun({type:'reconcileUnknown',id:initial.id as string,version:4,evidence:'INVALID',resolution:'verified-no-charge'})).rejects.toThrow();
   const manually=await prepareProviderRun({type:'reconcileUnknown',id:initial.id as string,version:4,evidence:'MOCK-VERIFIED-NOCHARGE',resolution:'verified-no-charge'});
   expect(manually.state).toBe('RECONCILED');
   await sql`update runtime_settings set kill_switch=false`;
+  await sql`update projects set status='active' where id=${projectId}`;
   await expect(prepareProviderRun({type:'reconcileUnknown',id:initial.id as string,version:4,evidence:'MOCK-VERIFIED-NOCHARGE',resolution:'verified-no-charge'})).rejects.toThrow('stale');
   const secondReserved=await prepareProviderRun({type:'reserve',id:other.id as string,version:2});
   expect(secondReserved.state).toBe('RESERVED');
