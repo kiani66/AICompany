@@ -1,4 +1,4 @@
-import postgres from 'postgres';
+import { sqlClient } from '@/db/client';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { evaluatePolicy, fakeProvider } from './runtime-policy';
@@ -10,8 +10,7 @@ export const runtimeCommand=z.discriminatedUnion('type',[
  z.object({type:z.literal('approve'),id,version}),z.object({type:z.literal('queue'),id,version}),z.object({type:z.literal('start'),id,version}),z.object({type:z.literal('simulate'),id,version}),z.object({type:z.literal('cancel'),id,version}),
 ]);
 export type RuntimeCommand=z.infer<typeof runtimeCommand>;
-let client:ReturnType<typeof postgres>|undefined;
-function db(){ if(!process.env.DATABASE_URL) throw new Error('Database unavailable'); return client ??= postgres(process.env.DATABASE_URL,{max:5,prepare:false}); }
+function db(){ return sqlClient(); }
 export class RuntimeError extends Error {}
 export async function runtime(c:RuntimeCommand){ const outcome=await db().begin(async tx=>{
  await tx`select pg_advisory_xact_lock(hashtextextended('aicompany-runtime',0))`;
