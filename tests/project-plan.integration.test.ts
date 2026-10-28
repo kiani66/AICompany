@@ -6,11 +6,13 @@ import { saveMockProposal, decideMockProposal, listMockProposals } from '../src/
 it('persists immutable mock snapshots and accepts or rejects without creating tasks or AI runs', async () => {
   const sql=postgres(process.env.DATABASE_URL!,{max:3});
   let projectId='';
+  const proposalIds:string[]=[];
   const original='Synthetic test scope; no secrets.';
   try {
     const created=await executeCommand({type:'project.create',name:'Mock planning integration',priority:'low'}) as {id:string};
     projectId=created.id;
     const first=await saveMockProposal({projectId,description:original,acknowledgement:true,model:'deterministic-mock-v1'});
+    proposalIds.push(first.id);
     expect(first.status).toBe('REVIEW_REQUIRED');
     expect(first.model).toBe('deterministic-mock-v1');
     const [stored]=await sql`select * from project_plan_proposals where id=${first.id}`;
@@ -30,6 +32,7 @@ it('persists immutable mock snapshots and accepts or rejects without creating ta
     expect(after.version).toBe(2);
     expect(['ACCEPTED','REJECTED']).toContain(after.status);
     const second=await saveMockProposal({projectId,description:'Second synthetic input',acknowledgement:true,model:'deterministic-mock-v1'});
+    proposalIds.push(second.id);
     await decideMockProposal({id:second.id,version:1,decision:'REJECTED'});
     const history=await listMockProposals();
     expect(history.some(x=>x.id===first.id)).toBe(true);
@@ -43,8 +46,8 @@ it('persists immutable mock snapshots and accepts or rejects without creating ta
     expect(audit.count).toBe(2);
   } finally {
     if(projectId) {
+      for(const id of proposalIds) await sql`delete from audit_events where event like ${'%' + id + '%'}`;
       await sql`delete from project_plan_proposals where project_id=${projectId}`;
-      await sql`delete from audit_events where event like ${'%' + projectId + '%'}`;
       await sql`delete from projects where id=${projectId}`;
     }
     await sql.end();
