@@ -1,4 +1,4 @@
-import postgres from 'postgres';
+import { sqlClient } from '@/db/client';
 import { z } from 'zod';
 import { canTransition, hasCycle, type TaskState } from './governance';
 const id=z.string().uuid(), version=z.number().int().positive(), priority=z.enum(['low','medium','high']);
@@ -16,8 +16,7 @@ export const command=z.discriminatedUnion('type',[
  z.object({type:z.literal('approval.decide'),id,projectId:id,version,status:z.enum(['approved','rejected']),reason:z.string().trim().min(1).max(1000)}),
 ]);
 export type Command=z.infer<typeof command>;
-let client: ReturnType<typeof postgres> | undefined;
-function db(){ if(!process.env.DATABASE_URL) throw new Error('Database unavailable'); return client ??= postgres(process.env.DATABASE_URL,{max:5,prepare:false}); }
+function db(){ return sqlClient(); }
 export class WorkflowError extends Error {}
 export async function executeCommand(c:Command) { return db().begin(async tx=>{
  const [company]=await tx`select id from companies limit 1`; if(!company) throw new WorkflowError('Company not initialized');
