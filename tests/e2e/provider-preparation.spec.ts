@@ -45,6 +45,10 @@ test('CEO rehearses exact provider consent, atomic reserve and unresolved timeou
   expect(hold.count).toBe(3);
   const [budget]=await sql`select reserved_tokens from runtime_budgets where scope='global'`;
   expect(budget.reserved_tokens).toBe(20);
+  await page.getByRole('button',{name:'Verify mock no charge and release reservation'}).click();
+  await expect(page.getByText('RECONCILED',{exact:true})).toBeVisible();
+  const [reconciledBudget]=await sql`select reserved_tokens from runtime_budgets where scope='global'`;
+  expect(reconciledBudget.reserved_tokens).toBe(0);
   expect((await sql`select count(*)::int as count from task_executions`)[0].count).toBe(0);
  }finally{
   if(proposalId){
