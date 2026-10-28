@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 
 type Proposal = { summary:string; milestones:{title:string;acceptanceCriteria:string}[] };
-type Saved = {id:string;project_id:string;status:string;version:number;provider:string;model:string;snapshot_sha256:string;proposal:string;created_at:string};
+type Saved = {id:string;project_id:string;status:string;version:number;provider:string;model:string;snapshot:string;snapshot_sha256:string;proposal:string;created_at:string};
 type Project = {id:string;name:string;status:string};
 const model='deterministic-mock-v1';
 export default function ProjectPlanPage() {
@@ -78,6 +78,7 @@ export default function ProjectPlanPage() {
         return <div key={x.id} className="space-y-2 rounded border p-4">
           <p><strong>{projects.find(p=>p.id===x.project_id)?.name??x.project_id}</strong> — {x.status} · version {x.version}</p>
           <p className="text-xs">Mock provider: {x.provider}, {x.model} · Snapshot SHA-256: {x.snapshot_sha256}</p>
+          <div className="rounded bg-gray-50 p-2"><strong>Exact saved input (synthetic only)</strong><p className="whitespace-pre-wrap break-words">{x.snapshot}</p></div>
           {plan && <><p>{plan.summary}</p><ul className="list-disc pl-6">{plan.milestones.map((m,i)=><li key={i}>{m.title}: {m.acceptanceCriteria}</li>)}</ul></>}
           {x.status==='REVIEW_REQUIRED' && <div className="flex gap-3">
             <button className={button} disabled={busy} onClick={()=>void act(async()=>{
