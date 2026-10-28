@@ -1,0 +1,9 @@
+import { sameOrigin } from '@/lib/origin';
+import { NextRequest, NextResponse } from 'next/server';
+import { compare } from 'bcryptjs';
+import { z } from 'zod';
+import { cookieName, createSession } from '@/lib/auth';
+const input=z.object({password:z.string().min(1).max(256)});
+// Best-effort process-local throttling; production needs a shared rate limiter.
+const attempts = new Map<string,{count:number; until:number}>();
+export async function POST(req:NextRequest) { const origin=req.headers.get('origin'); if (!origin || !sameOrigin(req, origin)) return NextResponse.json({error:'Invalid origin'},{status:403}); const ip=req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'; const now=Date.now(); const entry=attempts.get(ip); if(entry && entry.until>now && entry.count>=10) return NextResponse.json({error:'Try again later'},{status:429}); const current=entry && entry.until>now ? entry : {count:0,until:now+15*60_000}; current.count++; attempts.set(ip,current); let body:unknown; try { body=await req.json(); } catch { return NextResponse.json({error:'Invalid request'},{status:400}); } const parsed=input.safeParse(body); const hash=process.env.CEO_PASSWORD_HASH; if (!hash || !/^\$2[aby]\$/.test(hash) || !parsed.success || !(await compare(parsed.data.password,hash))) return NextResponse.json({error:'Invalid credentials'},{status:401}); try { const token=await createSession(); attempts.delete(ip); const response=NextResponse.json({ok:true}); response.cookies.set(cookieName,token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',path:'/',maxAge:8*60*60}); response.headers.set('Cache-Control','no-store'); return response; } catch { return NextResponse.json({error:'Authentication not configured'},{status:503}); } }

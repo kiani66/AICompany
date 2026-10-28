@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+body { background:#f7f8fa; color:#172033; font-family:Arial,sans-serif; }
+a { color:#1d4ed8; } a:hover { text-decoration:underline; }
+:focus-visible { outline:3px solid #2563eb; outline-offset:3px; }

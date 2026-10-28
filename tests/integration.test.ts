@@ -1,0 +1,4 @@
+import { describe,it,expect } from 'vitest';
+import postgres from 'postgres';
+import { execFileSync } from 'node:child_process';
+describe('fresh database',()=>{ it('migrates and seeds idempotently with six disabled agents and no activity',async()=>{ if(!process.env.DATABASE_URL) throw new Error('DATABASE_URL required'); for(const script of ['db:migrate','db:seed','db:seed']) execFileSync('npm',['run',script],{stdio:'inherit'}); const sql=postgres(process.env.DATABASE_URL,{max:1}); try { const [a]=await sql`select count(*)::int as count, count(*) filter (where execution_enabled)::int as enabled from agents`; expect(a.count).toBe(6); expect(a.enabled).toBe(0); for(const name of ['projects','tasks','task_executions','approval_requests','agent_reports','usage_records']) { const [r]=await sql.unsafe(`select count(*)::int as count from ${name}`); expect(r.count).toBe(0); } } finally {await sql.end();} },60000); });
