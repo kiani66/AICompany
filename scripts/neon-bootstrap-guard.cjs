@@ -84,16 +84,23 @@ async function check(phase,env=process.env) {
     if(phase==='post') {
       const counts=(await app.unsafe('SELECT count(*)::int total,count(*) FILTER(WHERE execution_enabled)::int enabled FROM public.agents'))[0];
       must(counts.total===6 && counts.enabled===0,'Expected six disabled agents');
-      const allowed=[['agents','SELECT'],['audit_events','SELECT'],['audit_events','INSERT'],
-        ['pm_artifacts','SELECT'],['pm_artifacts','INSERT'],['tasks','INSERT'],['sessions','DELETE']];
-      const denied=[['agents','UPDATE'],['agents','DELETE'],['audit_events','UPDATE'],['audit_events','DELETE'],
-        ['audit_events','TRUNCATE'],['pm_artifacts','UPDATE'],['pm_artifacts','DELETE'],
-        ['pm_artifacts','TRUNCATE'],['companies','UPDATE'],['task_executions','INSERT'],
-        ['execution_checkpoints','DELETE'],['usage_records','INSERT'],['agent_reports','INSERT'],
-        ['pm_handoffs','DELETE']];
-      for(const [table,priv] of allowed.concat(denied)) {
-        const result=(await app.unsafe('SELECT has_table_privilege(current_user,$1,$2) ok',['public.'+table,priv]))[0];
-        must(result.ok===allowed.some(([t,p])=>t===table&&p===priv),'Wrong table privilege: '+table+'/'+priv);
+      // Exact table-level allowlist from scripts/app-privileges.sql: fail on
+      // missing required privileges AND on any surplus (incl. TRUNCATE/DDL).
+      const acl = {
+        companies:'S', agents:'S', agent_capabilities:'S', agent_reports:'S',
+        usage_records:'S', task_executions:'S', execution_checkpoints:'S',
+        projects:'SIU', approval_requests:'SIU',
+        tasks:'SIUD', task_dependencies:'SIUD', sessions:'SIUD', login_rate_limits:'SIUD',
+        audit_events:'SI', runtime_settings:'SIU', runtime_budgets:'SIU',
+        simulation_runs:'SIU', simulation_ledger:'SI', runtime_denials:'SI',
+        pm_handoffs:'SI', pm_artifacts:'SI'
+      };
+      const flags = {SELECT:'S',INSERT:'I',UPDATE:'U',DELETE:'D',TRUNCATE:'T',REFERENCES:'R',TRIGGER:'G'};
+      for (const [table, policy] of Object.entries(acl)) {
+        for (const [priv, code] of Object.entries(flags)) {
+          const result=(await app.unsafe('SELECT has_table_privilege(current_user,$1,$2) ok',['public.'+table,priv]))[0];
+          must(result.ok===policy.includes(code),'Wrong table privilege: '+table+'/'+priv);
+        }
       }
       for(const [t,c,expected] of [['pm_handoffs','version',true],['pm_handoffs','brief',false],
         ['runtime_denials','count',true],['runtime_denials','reason',false]]) {
