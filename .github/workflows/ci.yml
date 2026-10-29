@@ -29,6 +29,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify production bootstrap security policy (offline; no remote writes)
+        run: node scripts/neon-bootstrap-guard.checks.cjs
       - run: echo "CEO_PASSWORD_HASH=$(node -e "console.log(require('bcryptjs').hashSync(process.env.TEST_CEO_PASSWORD, 12))")" >> "$GITHUB_ENV"
       - run: npm run lint
       - run: npm run typecheck
