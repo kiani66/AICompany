@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Node-only CommonJS CLI and node:test */
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
