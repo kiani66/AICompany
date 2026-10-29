@@ -3,7 +3,7 @@
 const test=require('node:test');
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
-const {TARGET,TABLES,ACL,identity,validateRoles,manifest,validateHistory,validateTables}=require('./neon-bootstrap-guard.cjs');
+const {TARGET,TABLES,ACL,identity,validateRoles,validateLegacyRole,manifest,validateHistory,validateTables}=require('./neon-bootstrap-guard.cjs');
 const owner='postgresql://neondb_owner:test-only@'+TARGET.directHost+'/neondb?sslmode=require';
 const runtime='postgresql://aicompany_runtime_restricted:test-only@'+TARGET.directHost+'/neondb?sslmode=require';
 const clean=(name,login)=>({rolname:name,rolsuper:false,rolcreatedb:false,rolcreaterole:false,rolreplication:false,rolbypassrls:false,rolcanlogin:login});
@@ -67,4 +67,13 @@ test('all twenty-one runtime table grants match canonical SQL exactly',()=>{
   assert.deepEqual([...actual.entries()].sort(),Object.entries(ACL).sort());
   assert.match(sql,/REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC/);
   assert.match(sql,/DO \$\$ BEGIN EXECUTE format/);
+});
+
+test('blocks the elevated original LOGIN even after switching credentials',()=>{
+  const legacy=clean('aicompany_runtime',true);
+  assert.throws(()=>validateLegacyRole({...legacy,rolcreatedb:true},['neon_superuser','aicompany_app']));
+  assert.throws(()=>validateLegacyRole(legacy,['aicompany_app']));
+  assert.throws(()=>validateLegacyRole({...legacy,rolcanlogin:false},['neon_superuser']));
+  assert.doesNotThrow(()=>validateLegacyRole(null,[]));
+  assert.doesNotThrow(()=>validateLegacyRole({...legacy,rolcanlogin:false},[]));
 });
