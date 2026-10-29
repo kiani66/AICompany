@@ -11,6 +11,16 @@ const TARGET = Object.freeze({
 });
 const TABLES = 'companies agents agent_capabilities agent_reports usage_records task_executions execution_checkpoints projects approval_requests tasks task_dependencies sessions login_rate_limits audit_events runtime_settings runtime_budgets simulation_runs simulation_ledger runtime_denials pm_handoffs pm_artifacts'.split(' ');
 const SAFE_SCHEMAS = new Set(['public','drizzle','neon_auth']);
+const ACL = Object.freeze({
+  companies:'S', agents:'S', agent_capabilities:'S', agent_reports:'S',
+  usage_records:'S', task_executions:'S', execution_checkpoints:'S',
+  projects:'SIU', approval_requests:'SIU',
+  tasks:'SIUD', task_dependencies:'SIUD', sessions:'SIUD', login_rate_limits:'SIUD',
+  audit_events:'SI', runtime_settings:'SIU', runtime_budgets:'SIU',
+  simulation_runs:'SIU', simulation_ledger:'SI', runtime_denials:'SI',
+  pm_handoffs:'SI', pm_artifacts:'SI'
+      });
+
 function must(ok,msg) { if(!ok) throw new Error(msg); }
 function identity(raw,kind) {
   must(typeof raw === 'string' && raw.length > 0,'Missing database credential');
@@ -87,17 +97,8 @@ async function check(phase,env=process.env) {
       must(counts.total===6 && counts.enabled===0,'Expected six disabled agents');
       // Exact table-level allowlist from scripts/app-privileges.sql: fail on
       // missing required privileges AND on any surplus (incl. TRUNCATE/DDL).
-      const acl = {
-        companies:'S', agents:'S', agent_capabilities:'S', agent_reports:'S',
-        usage_records:'S', task_executions:'S', execution_checkpoints:'S',
-        projects:'SIU', approval_requests:'SIU',
-        tasks:'SIUD', task_dependencies:'SIUD', sessions:'SIUD', login_rate_limits:'SIUD',
-        audit_events:'SI', runtime_settings:'SIU', runtime_budgets:'SIU',
-        simulation_runs:'SIU', simulation_ledger:'SI', runtime_denials:'SI',
-        pm_handoffs:'SI', pm_artifacts:'SI'
-      };
       const flags = {SELECT:'S',INSERT:'I',UPDATE:'U',DELETE:'D',TRUNCATE:'T',REFERENCES:'R',TRIGGER:'G'};
-      for (const [table, policy] of Object.entries(acl)) {
+      for (const [table, policy] of Object.entries(ACL)) {
         for (const [priv, code] of Object.entries(flags)) {
           const result=(await app.unsafe('SELECT has_table_privilege(current_user,$1,$2) ok',['public.'+table,priv]))[0];
           must(result.ok===policy.includes(code),'Wrong table privilege: '+table+'/'+priv);
@@ -150,4 +151,4 @@ if(require.main===module) check(process.argv[2]).catch(e=>{
   console.error('Bootstrap guard failed ('+(e.code||'policy')+')');
   process.exitCode=1;
 });
-module.exports={TARGET,TABLES,identity,validateRoles,manifest,validateHistory,validateTables,check};
+module.exports={TARGET,TABLES,ACL,identity,validateRoles,manifest,validateHistory,validateTables,check};
