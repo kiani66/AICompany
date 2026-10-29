@@ -19,4 +19,4 @@ GRANT UPDATE (version) ON pm_handoffs TO aicompany_app;
 
 -- PostgreSQL grants are database-wide for TEMP: deny temporary DDL to app roles.
 -- Existing application flows do not use temporary tables.
-DO $ BEGIN EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database()); END $;
+DO $$ BEGIN EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database()); END $$;
