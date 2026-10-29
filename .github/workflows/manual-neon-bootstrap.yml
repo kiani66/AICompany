@@ -1,0 +1,95 @@
+name: Manual Neon database bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type BOOTSTRAP-AICOMPANY to confirm the target database'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aicompany-production-database-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    if: ${{ inputs.confirmation == 'BOOTSTRAP-AICOMPANY' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production-database
+    env:
+      DATABASE_MIGRATION_URL: ${{ secrets.AICOMPANY_MIGRATION_DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.AICOMPANY_RUNTIME_DATABASE_URL }}
+      EXPECTED_NEON_PROJECT_ID: jolly-paper-27220159
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Require separately provisioned credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_MIGRATION_URL" || { echo "::error::Missing migration database secret"; exit 1; }
+          test -n "$DATABASE_URL" || { echo "::error::Missing runtime database secret"; exit 1; }
+          test "$DATABASE_URL" != "$DATABASE_MIGRATION_URL" || { echo "::error::Runtime and migration credentials must differ"; exit 1; }
+      - run: npm ci
+      - name: Verify target, role separation and empty-or-managed schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const postgres = require('postgres');
+          const ownerUrl = new URL(process.env.DATABASE_MIGRATION_URL);
+          const runtimeUrl = new URL(process.env.DATABASE_URL);
+          if (!ownerUrl.hostname.includes('.neon.tech') || !runtimeUrl.hostname.includes('.neon.tech')) throw Error('Expected Neon hosts');
+          if (ownerUrl.hostname !== runtimeUrl.hostname || ownerUrl.pathname !== runtimeUrl.pathname) throw Error('Database hosts/names must match');
+          if (ownerUrl.username === runtimeUrl.username) throw Error('Owner and runtime users must differ');
+          const sql = postgres(process.env.DATABASE_MIGRATION_URL,{max:1});
+          (async()=>{
+            const [info]=await sql`select current_database() db, current_user role, current_setting('server_version_num')::int ver`;
+            if(info.ver < 160000) throw Error('PostgreSQL >=16 required');
+            const [schema]=await sql`select count(*)::int n from information_schema.tables where table_schema='public'`;
+            const [history]=await sql`select count(*)::int n from information_schema.tables where table_schema='drizzle' and table_name='__drizzle_migrations'`;
+            if(schema.n>0 && history.n===0) throw Error('Nonempty unmanaged schema; stop');
+            console.log('Target database and version checked; schema tables:',schema.n);
+          })().catch(e=>{console.error(e.message);process.exitCode=1}).finally(()=>sql.end());
+          NODE
+      - name: Apply canonical migrations and seed
+        run: |
+          npm run db:migrate
+          DATABASE_URL="$DATABASE_MIGRATION_URL" npm run db:seed
+      - name: Apply canonical grants
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_MIGRATION_URL" -X -v ON_ERROR_STOP=1 -f scripts/app-privileges.sql
+      - name: Verify runtime is non-owner and cannot modify audit records
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const postgres=require('postgres');
+          const owner=postgres(process.env.DATABASE_MIGRATION_URL,{max:1});
+          const app=postgres(process.env.DATABASE_URL,{max:1});
+          (async()=>{
+            const [o]=await owner`select current_user as name`;
+            const [a]=await app`select current_user as name, pg_has_role(current_user,'aicompany_app','member') as member, (select rolsuper or rolcreatedb or rolcreaterole or rolbypassrls from pg_roles where rolname=current_user) as elevated`;
+            if(o.name===a.name||!a.member||a.elevated)throw Error('Invalid runtime role');
+            const [n]=await app`select count(*)::int as n from agents where execution_enabled=true`;
+            const [total]=await app`select count(*)::int as n from agents`;
+            if(n.n!==0||total.n!==6)throw Error('Expected six disabled agents');
+            for(const [table,priv] of [['audit_events','UPDATE'],['audit_events','DELETE'],['pm_artifacts','UPDATE'],['pm_artifacts','DELETE'],['pm_artifacts','TRUNCATE']]){
+              const [p]=await app`select has_table_privilege(current_user,${table},${priv}) as allowed`;
+              if(p.allowed)throw Error('Forbidden permission '+table+' '+priv);
+            }
+            console.log('Runtime role, six disabled agents and immutable audit/artifact privileges verified');
+          })().catch(e=>{console.error(e.message);process.exitCode=1}).finally(async()=>{await app.end();await owner.end()});
+          NODE
