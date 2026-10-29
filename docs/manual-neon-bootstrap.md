@@ -1,6 +1,6 @@
 # AICompany — Production Bootstrap & Security Runbook
 
-**STATUS: BLOCKED (P0). Never merge, migrate, or deploy without explicit CEO approval and all release gates passing.**
+**STATUS: Elevated legacy Neon runtime removed; bootstrap/deployment still BLOCKED pending secure login cutover, Vercel isolation, protected secrets and CEO approval. Never merge, migrate, or deploy without explicit CEO approval and all release gates passing.**
 
 ## Verified target
 
@@ -10,7 +10,7 @@
 - Database: neondb, PostgreSQL 18.6.
 - Direct host: ep-quiet-rice-b7flg3cr.c-13.us-east-1.aws.neon.tech.
 - Pooler host: ep-quiet-rice-b7flg3cr-pooler.c-13.us-east-1.aws.neon.tech (**pooler currently disabled**).
-- Migration owner: neondb_owner. Approved replacement runtime: aicompany_runtime_restricted (currently NOLOGIN pending secure credential provisioning). Legacy elevated role: aicompany_runtime. Grants group: aicompany_app (NOLOGIN).
+- Migration owner: neondb_owner. Approved replacement runtime: aicompany_runtime_restricted (currently NOLOGIN pending secure credential provisioning). Deleted elevated legacy role: aicompany_runtime. Grants group: aicompany_app (NOLOGIN).
 - Existing Vercel project: prj_ZV4WoLpd4I3zv59f5rNXay8jTqPs, team team_nPdLGUOJSYke0qNqhQf5joPv. Do not recreate or unlink.
 
 **Endpoint pinning:** The preflight pins the exact host reported by Neon for the above project and branch. If Neon changes endpoints, stop and independently verify the replacement belongs to these IDs before a reviewed update to the guard. Pinning is not a substitute for provider-side project verification.
@@ -19,17 +19,16 @@
 
 **Verified change in live Neon:** A SQL-created role named aicompany_runtime_restricted now exists on the original branch/database. It is NOLOGIN (no password provisioned), NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS, and inherits exactly one unprivileged NOLOGIN role, aicompany_app. It is not a database owner. No new credential was generated or exposed. These attributes and its one role membership were verified with a live read-only catalog query.
 
-**Legacy P0 still ACTIVE:** The original Neon API/Console-created aicompany_runtime remains LOGIN and inherits neon_superuser with elevated role attributes. Attempts by neondb_owner to ALTER the legacy role or REVOKE neon_superuser failed with permission denied. Nothing was changed on the legacy role. The preflight now explicitly rejects an active or elevated legacy role, even when a restricted credential is otherwise supplied. Do not bootstrap yet.
-
+**Legacy P0 REMEDIATED (Neon account deletion verified):** After explicit CEO approval, live checks found no active legacy-runtime sessions, no owned tables/schemas/databases, no shared dependencies, and no application tables in public. The legacy `aicompany_runtime` role was deleted through Neon role management. Verification returned zero matching rows in pg_roles, and the Neon role API returned HTTP 404. The old password can no longer authenticate. The new restricted role remains NOLOGIN, so no production database runtime access is yet configured. Vercel environment credentials cannot be independently audited until its team authorization is fixed; any stale old-role URL is now unusable but still needs removal. The guard retains a fail-closed legacy-role regression check.
 Neon documentation: https://neon.com/docs/manage/database-access . New least-privilege roles must be SQL-created; creating a replacement through the Neon UI/API will restore unwanted neon_superuser membership.
 
-### Remaining controlled cutover
+### Remaining controlled cutover (legacy role deleted)
 
-1. Obtain CEO authorization for retiring/deleting the **old** role after checking existing connection usage and the Vercel integration. Neon role deletion is destructive and is **not** included in this PR's workflow. Until old credentials are revoked, old role still poses a P0 risk.
+1. **Completed:** Authorized legacy role deletion after checking zero live connections, zero owned objects and zero recorded dependencies; confirmed absent through Neon API and pg_roles. Neon role deletion is a separately approved operational incident action, not part of the PR workflow. Vercel configuration remains unverified and must be inspected for stale credentials.
 2. Provision a high-entropy credential for aicompany_runtime_restricted in a trusted password manager/admin SQL session, then explicitly enable LOGIN. Use a secure connection and avoid copying any real password into chat, GitHub files/issues, or PR comments. Do not enter the password into an online password-hashing site.
 3. Store the new restricted runtime URL only in the GitHub protected production-database environment as AICOMPANY_RUNTIME_DATABASE_URL and Vercel Production as DATABASE_URL. Never put the neondb_owner URL into Vercel, and never give Preview access to the production branch.
 4. Remove all references to the old or privileged production credentials from Vercel Preview/Development/Production (including integration-injected variables) before enabling release. Use an isolated nonproduction Neon branch and separate role if Preview needs database access.
-5. Re-run catalog checks using read-only SQL and the preflight from the protected workflow; expect the restricted role's effective identity and exactly one aicompany_app membership, with old role absent or fully inactive and unprivileged.
+5. Re-run catalog checks using read-only SQL and the preflight from the protected workflow; expect the restricted role's effective identity and exactly one aicompany_app membership, with old role absent. The existing preflight currently intentionally fails until restricted LOGIN credentials are provisioned securely.
 
 Read-only role inspection (Neon SQL Editor, neondb_owner):
 
@@ -50,7 +49,7 @@ The restricted role should ultimately be LOGIN with no elevated attributes; it m
 2. Require reviewers, prevent self-review if available, and restrict deployments to **main**. Check whether these protections are available under your GitHub plan; do not presume they are enabled.
 3. In that environment only, securely add AICOMPANY_MIGRATION_DATABASE_URL and AICOMPANY_RUNTIME_DATABASE_URL. Never use repository-wide secrets for the migration owner. The two URLs must use separate roles and credentials and must specify neondb and sslmode=require (or verify-full).
 4. Migration credentials must use the **direct** host. Runtime may use direct; pooled is only acceptable after Neon pooler is enabled and separately verified.
-5. After code review, the workflow requires manual dispatch from main, exact production confirmation, project and branch inputs, and protection approval. It **does not** run on PR branches. Do not dispatch while P0 remains.
+5. After code review, the workflow requires manual dispatch from main, exact production confirmation, project and branch inputs, and protection approval. It **does not** run on PR branches. Do not dispatch until secure runtime login, environment isolation and all authorization gates are verified.
 
 ## Guarded workflow
 
@@ -76,7 +75,8 @@ The restricted role should ultimately be LOGIN with no elevated attributes; it m
 ## Release gates
 
 - [x] SQL-created restricted role provisioned with NOLOGIN, no password, and verified to inherit only aicompany_app.
-- [ ] Legacy elevated aicompany_runtime retired/disabled and no production app or integration still uses its credentials.
+- [x] Legacy elevated aicompany_runtime deleted and independently verified absent (2026-10-29); no active sessions or objects found before deletion.
+- [ ] Vercel stale legacy connection URLs removed and production/preview variable scopes inspected after Vercel authorization.
 - [ ] Restricted runtime credential provisioned securely, enabled for LOGIN and tested on actual Neon.
 - [ ] GitHub production-database environment protected by required review.
 - [ ] Canonical target hosts, branch and database confirmed; recovery backup available.
