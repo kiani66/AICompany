@@ -5,7 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const TARGET = Object.freeze({
   project:'jolly-paper-27220159', branch:'br-quiet-feather-b7ew3f2r',
-  database:'neondb', owner:'neondb_owner', runtime:'aicompany_runtime', group:'aicompany_app',
+  database:'neondb', owner:'neondb_owner', runtime:'aicompany_runtime_restricted', group:'aicompany_app',
   directHost:'ep-quiet-rice-b7flg3cr.c-13.us-east-1.aws.neon.tech',
   pooledHost:'ep-quiet-rice-b7flg3cr-pooler.c-13.us-east-1.aws.neon.tech'
 });
@@ -80,9 +80,9 @@ async function check(phase,env=process.env) {
     must(o.db===TARGET.database && a.db===TARGET.database && o.role===TARGET.owner && a.role===TARGET.runtime,
       'Effective database or role mismatch');
     must(o.ver>=160000,'Unsupported PostgreSQL');
-    const roles=await owner.unsafe("SELECT rolname,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls,rolcanlogin FROM pg_roles WHERE rolname IN ('aicompany_runtime','aicompany_app')");
-    const members=await owner.unsafe("SELECT rolname FROM pg_roles WHERE oid <> (SELECT oid FROM pg_roles WHERE rolname='aicompany_runtime') AND pg_has_role('aicompany_runtime',oid,'MEMBER')");
-    const ownership=(await owner.unsafe("SELECT (SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database()) db_owner,(SELECT count(*) FROM pg_class WHERE relowner=(SELECT oid FROM pg_roles WHERE rolname='aicompany_runtime'))+(SELECT count(*) FROM pg_namespace WHERE nspowner=(SELECT oid FROM pg_roles WHERE rolname='aicompany_runtime')) objects"))[0];
+    const roles=await owner.unsafe("SELECT rolname,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls,rolcanlogin FROM pg_roles WHERE rolname IN ('aicompany_runtime_restricted','aicompany_app')");
+    const members=await owner.unsafe("SELECT rolname FROM pg_roles WHERE oid <> (SELECT oid FROM pg_roles WHERE rolname='aicompany_runtime_restricted') AND pg_has_role('aicompany_runtime_restricted',oid,'MEMBER')");
+    const ownership=(await owner.unsafe("SELECT (SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database()) db_owner,(SELECT count(*) FROM pg_class WHERE relowner=(SELECT oid FROM pg_roles WHERE rolname='aicompany_runtime_restricted'))+(SELECT count(*) FROM pg_namespace WHERE nspowner=(SELECT oid FROM pg_roles WHERE rolname='aicompany_runtime_restricted')) objects"))[0];
     validateRoles(roles.find(x=>x.rolname===TARGET.runtime),roles.find(x=>x.rolname===TARGET.group),
       members.map(x=>x.rolname).sort(),ownership.db_owner,ownership.objects);
     const schemas=await owner.unsafe("SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname<>'information_schema'");
