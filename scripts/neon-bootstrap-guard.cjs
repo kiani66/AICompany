@@ -46,6 +46,14 @@ function validateRoles(runtime,group,members,dbOwner,objectCount) {
   must(members.length===1 && members[0]===TARGET.group,'Unexpected inherited role membership');
   must(dbOwner!==TARGET.runtime && Number(objectCount)===0,'Runtime owns database objects');
 }
+function validateLegacyRole(legacy, memberships) {
+  // Old Neon API-created credential must be retired before bootstrap.
+  // Merely switching DATABASE_URL does not revoke its ability to access neondb.
+  if (!legacy) return;
+  must(!legacy.rolcanlogin && !legacy.rolsuper && !legacy.rolcreatedb &&
+    !legacy.rolcreaterole && !legacy.rolreplication && !legacy.rolbypassrls &&
+    memberships.length===0, 'P0: former aicompany_runtime still has usable/elevated access');
+}
 function manifest(root=process.cwd()) {
   const journal=JSON.parse(fs.readFileSync(path.join(root,'drizzle/meta/_journal.json'),'utf8'));
   must(journal.entries.length===11,'Expected 11 migrations');
@@ -85,6 +93,11 @@ async function check(phase,env=process.env) {
     const ownership=(await owner.unsafe("SELECT (SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database()) db_owner,(SELECT count(*) FROM pg_class WHERE relowner=(SELECT oid FROM pg_roles WHERE rolname='aicompany_runtime_restricted'))+(SELECT count(*) FROM pg_namespace WHERE nspowner=(SELECT oid FROM pg_roles WHERE rolname='aicompany_runtime_restricted')) objects"))[0];
     validateRoles(roles.find(x=>x.rolname===TARGET.runtime),roles.find(x=>x.rolname===TARGET.group),
       members.map(x=>x.rolname).sort(),ownership.db_owner,ownership.objects);
+    const legacy=(await owner.unsafe("SELECT rolname,rolcanlogin,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls FROM pg_roles WHERE rolname='aicompany_runtime'"))[0];
+    const legacyMembers=legacy
+      ? await owner.unsafe("SELECT rolname FROM pg_roles WHERE oid<>(SELECT oid FROM pg_roles WHERE rolname='aicompany_runtime') AND pg_has_role('aicompany_runtime',oid,'MEMBER')")
+      : [];
+    validateLegacyRole(legacy,legacyMembers.map(x=>x.rolname));
     const schemas=await owner.unsafe("SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname<>'information_schema'");
     must(schemas.every(s=>SAFE_SCHEMAS.has(s.nspname)),'Unexpected database schema');
     const rel=await owner.unsafe("SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','f','S')");
@@ -151,4 +164,4 @@ if(require.main===module) check(process.argv[2]).catch(e=>{
   console.error('Bootstrap guard failed ('+(e.code||'policy')+')');
   process.exitCode=1;
 });
-module.exports={TARGET,TABLES,ACL,identity,validateRoles,manifest,validateHistory,validateTables,check};
+module.exports={TARGET,TABLES,ACL,identity,validateRoles,validateLegacyRole,manifest,validateHistory,validateTables,check};
