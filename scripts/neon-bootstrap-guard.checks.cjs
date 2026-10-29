@@ -66,4 +66,5 @@ test('all twenty-one runtime table grants match canonical SQL exactly',()=>{
   }
   assert.deepEqual([...actual.entries()].sort(),Object.entries(ACL).sort());
   assert.match(sql,/REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC/);
+  assert.match(sql,/DO \$\$ BEGIN EXECUTE format/);
 });
