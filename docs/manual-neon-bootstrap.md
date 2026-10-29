@@ -72,7 +72,7 @@ The restricted role should ultimately be LOGIN with no elevated attributes; it m
 - **Critical upstream drift risk:** Storage `aicompany-db` `projectsMetadata` still shows `environments: [preview, production]`. Re-sync can reintroduce Preview secrets. Changing individual env target scopes is only interim containment, NOT a complete or durable fix. No deployment was triggered.
 - Remaining Production-integrated Neon credentials (17 variables) also must not be trusted for runtime: they may belong to a privileged integration role. Values are sensitive and were not retrieved or printed. Only the SQL-created restricted runtime credential may be used by Production after proper cutover.
 - The custom Production-only `DATABASE_URL` exists, but its decrypted value was not available to verify which role it targets. It **must be replaced** with a verified `aicompany_runtime_restricted` URL only after secure password provisioning.
-- `SESSION_SECRET` and `CEO_PASSWORD_HASH` were **not found** among the 19 listed project environment variable keys. Keep Production blocked.
+- **DONE:** Generated a high-entropy `SESSION_SECRET` using four PostgreSQL CSPRNG UUIDv4 values and created it as a **sensitive Production-only** Vercel environment variable. The value was never output. Vercel readback confirms its name and Production-only scope. `CEO_PASSWORD_HASH` is still absent. Keep Production blocked.
 
 **Manual action required in Vercel console (mobile browser):**
 1. Open https://vercel.com → existing `ai-company` project → **Storage / Neon → aicompany-db → Connected Projects / Manage**, and disconnect this project's **Preview** environment at the resource connection source; ideally disconnect this unsafe Integration from the application entirely once any non-production dependencies are understood. Do **not** delete the Neon database or storage resource.
@@ -94,7 +94,8 @@ The restricted role should ultimately be LOGIN with no elevated attributes; it m
 - [x] Seventeen Neon integration variables changed from Preview+Production to Production-only; verified by readback.
 - [ ] Remaining Preview-only integration DATABASE_URL removed, and Storage-level Preview association disconnected (source currently still both environments).
 - [ ] All privileged Neon Integration credentials removed from Vercel Production; only SQL-created restricted runtime DATABASE_URL remains.
-- [ ] SESSION_SECRET and CEO_PASSWORD_HASH configured securely.
+- [x] SESSION_SECRET securely provisioned as a Vercel Production-only sensitive environment variable (without logging the value).
+- [ ] CEO_PASSWORD_HASH configured securely as Production-only bcrypt hash.
 - [ ] PR #14 reviewed; CI/security checks green; explicit CEO approval for merge.
 - [ ] Separate explicit CEO approval for any production migration and deployment.
 
