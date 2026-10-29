@@ -60,17 +60,28 @@ The restricted role should ultimately be LOGIN with no elevated attributes; it m
 - Fail closed on any error. No automatic merge or deployment. No secret-bearing variables in checkout or npm ci. Driver exceptions are not printed because they may contain sensitive URLs.
 - Before any authorized writes, verify provider backups/snapshots and rollback procedures; this workflow itself is not a backup.
 
-## Vercel variable and integration security (mobile)
+## Vercel variable and integration security (verified 2026-10-29)
 
-**Remote Vercel inspection is not verified.** The connected app returned Project not found (404) and no app access (403) for the supplied team/project; remote changes were not made.
+**Connected project found and scoped access verified:** `ai-company` project ID `prj_ZV4WoLpd4I3zv59f5rNXay8jTqPs`. Explicitly supplying `teamId` incorrectly caused 404, whereas unscoped project and env actions worked; no project was recreated. The project reports `live=false` and no latest deployment. The existing Neon marketplace storage resource is `aicompany-db` (`store_JAsg8T1S8LZ7wJfl`).
 
-1. Open https://vercel.com, select the existing team and project, then **Settings → Environment Variables**. Also inspect **Integrations / Storage → Neon**.
-2. Inventory database-bearing variables: DATABASE_URL, POSTGRES_URL, POSTGRES_URL_NON_POOLING, POSTGRES_PRISMA_URL, PGHOST, PGUSER, PGPASSWORD, NEON_DATABASE_URL and other Neon integration variables.
-3. Check Production, Preview, Development and branch-specific scopes separately. **Remove Production database credentials from Preview** and ensure any integration cannot reinject them. Use a separate nonproduction Neon branch and limited role for Preview, or no Preview DB credentials at all.
-4. Production DATABASE_URL must use only the verified restricted runtime account. No migration-owner, admin, or neon_superuser credentials at any Vercel target.
-5. Configure Production-only SESSION_SECRET with strong random entropy and CEO_PASSWORD_HASH as a properly generated bcrypt hash. Use a trusted local password-hashing process; the CEO must never paste the plaintext password into GitHub, chat, PRs, issues or an untrusted web hash generator.
-6. Preserve the existing project and Git integration. Check **Settings → Git** and block automatic Production deployments before any merge; GitHub CI has no deploy step but the Vercel Git integration can deploy independently.
-7. Recheck all variable scopes **after** saving changes and after any integration synchronization. Do not accept deployment prompts before separate CEO authorization.
+**Actual environment changes:**
+- Before remediation: 19 Vercel environment variables; 17 Neon-integration variables exposed in both Production and Preview, plus one integration-provided Preview-only `DATABASE_URL` and one custom Production-only `DATABASE_URL`.
+- Changed all 17 dual-target variables to **Production-only** with Vercel edit-project-env, preserving values without fetching plaintext. All 17 edits succeeded, and independent readback confirmed zero variables with dual Production+Preview targeting.
+- Requested `previewDeploymentsDisabled: true` via Vercel update-project; request succeeded, but this field is not returned by the available readback API, so dashboard verification is still required.
+- Still present: one Preview-only **integration-managed** `DATABASE_URL` (ID `1Kajz6NxMW1tuKN0`), which must be removed/disconnected. The available edit endpoint rejects an empty target and no direct env DELETE action is available in the current connector.
+- **Critical upstream drift risk:** Storage `aicompany-db` `projectsMetadata` still shows `environments: [preview, production]`. Re-sync can reintroduce Preview secrets. Changing individual env target scopes is only interim containment, NOT a complete or durable fix. No deployment was triggered.
+- Remaining Production-integrated Neon credentials (17 variables) also must not be trusted for runtime: they may belong to a privileged integration role. Values are sensitive and were not retrieved or printed. Only the SQL-created restricted runtime credential may be used by Production after proper cutover.
+- The custom Production-only `DATABASE_URL` exists, but its decrypted value was not available to verify which role it targets. It **must be replaced** with a verified `aicompany_runtime_restricted` URL only after secure password provisioning.
+- `SESSION_SECRET` and `CEO_PASSWORD_HASH` were **not found** among the 19 listed project environment variable keys. Keep Production blocked.
+
+**Manual action required in Vercel console (mobile browser):**
+1. Open https://vercel.com → existing `ai-company` project → **Storage / Neon → aicompany-db → Connected Projects / Manage**, and disconnect this project's **Preview** environment at the resource connection source; ideally disconnect this unsafe Integration from the application entirely once any non-production dependencies are understood. Do **not** delete the Neon database or storage resource.
+2. In **Settings → Environment Variables**, remove the remaining Preview-only integration-managed `DATABASE_URL`. Inspect all 17 Production integration-managed variables and remove privileged owner/admin URLs/passwords before enabling deployment. Manage this at integration source so automatic resync cannot restore them.
+3. Verify that **Preview Deployments** are disabled as an interim safeguard, until Preview has a separate Neon branch and least-privilege credential. No Production database secrets should be available to Preview.
+4. Set only the restricted runtime URL as Production `DATABASE_URL`, and configure Production-only `SESSION_SECRET` and bcrypt `CEO_PASSWORD_HASH` through approved secret management. Never post secrets to chat or GitHub.
+5. Verify integration sync does not recreate exposures, check Vercel Git auto-deployment settings, and only then review authorization for any Production cutover.
+
+**Current result:** Neon elevated role eliminated; Vercel Preview exposure partially contained; source-level Neon Storage connection and Production owner-credential risk still block release.
 
 ## Release gates
 
@@ -80,7 +91,9 @@ The restricted role should ultimately be LOGIN with no elevated attributes; it m
 - [ ] Restricted runtime credential provisioned securely, enabled for LOGIN and tested on actual Neon.
 - [ ] GitHub production-database environment protected by required review.
 - [ ] Canonical target hosts, branch and database confirmed; recovery backup available.
-- [ ] Vercel Production only restricted runtime credentials; Preview isolated including integration-injected variables.
+- [x] Seventeen Neon integration variables changed from Preview+Production to Production-only; verified by readback.
+- [ ] Remaining Preview-only integration DATABASE_URL removed, and Storage-level Preview association disconnected (source currently still both environments).
+- [ ] All privileged Neon Integration credentials removed from Vercel Production; only SQL-created restricted runtime DATABASE_URL remains.
 - [ ] SESSION_SECRET and CEO_PASSWORD_HASH configured securely.
 - [ ] PR #14 reviewed; CI/security checks green; explicit CEO approval for merge.
 - [ ] Separate explicit CEO approval for any production migration and deployment.
