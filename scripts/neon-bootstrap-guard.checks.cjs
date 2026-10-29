@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Node-only CommonJS CLI and node:test */
 'use strict';
 const test=require('node:test');
+const fs=require('node:fs');
 const assert=require('node:assert/strict');
-const {TARGET,TABLES,identity,validateRoles,manifest,validateHistory,validateTables}=require('./neon-bootstrap-guard.cjs');
+const {TARGET,TABLES,ACL,identity,validateRoles,manifest,validateHistory,validateTables}=require('./neon-bootstrap-guard.cjs');
 const owner='postgresql://neondb_owner:test-only@'+TARGET.directHost+'/neondb?sslmode=require';
 const runtime='postgresql://aicompany_runtime:test-only@'+TARGET.directHost+'/neondb?sslmode=require';
 const clean=(name,login)=>({rolname:name,rolsuper:false,rolcreatedb:false,rolcreaterole:false,rolreplication:false,rolbypassrls:false,rolcanlogin:login});
@@ -46,4 +47,23 @@ test('rejects unmanaged, unknown, or incomplete relations',()=>{
   assert.throws(()=>validateTables(['companies'],false,false));
   assert.throws(()=>validateTables(TABLES.slice(0,-1),true,true));
   assert.throws(()=>validateTables([...TABLES,'extra'],true,true));
+});
+
+test('all twenty-one runtime table grants match canonical SQL exactly',()=>{
+  assert.deepEqual(Object.keys(ACL).sort(),[...TABLES].sort());
+  const sql=fs.readFileSync('scripts/app-privileges.sql','utf8');
+  const actual=new Map();
+  for(const line of sql.split(/\r?\n/)) {
+    const m=line.match(/^GRANT ([A-Z, ]+) ON ([a-z_, ]+) TO aicompany_app;$/);
+    if(!m)continue;
+    const perms=m[1].split(',').map(x=>x.trim());
+    for(const table of m[2].split(',').map(x=>x.trim())) {
+      const codes=perms.map(x=>({SELECT:'S',INSERT:'I',UPDATE:'U',DELETE:'D'})[x]);
+      assert.ok(codes.every(Boolean),'Unrecognized grant');
+      assert.equal(actual.has(table),false,'Duplicate table grant: '+table);
+      actual.set(table,codes.join(''));
+    }
+  }
+  assert.deepEqual([...actual.entries()].sort(),Object.entries(ACL).sort());
+  assert.match(sql,/REVOKE TEMPORARY ON DATABASE neondb FROM PUBLIC;/);
 });
