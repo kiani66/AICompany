@@ -46,7 +46,7 @@ Expected: runtime LOGIN, group NOLOGIN, all elevation flags false, and only aico
 - Install locked dependencies and run offline guard tests before providing any production credentials.
 - Read-only preflight: exact pinned endpoint, project/branch inputs, database, effective owner/runtime, version, role flags, recursive inherited memberships, non-ownership, allowlisted public/drizzle/neon_auth schemas, absence of unmanaged relations, and canonical migration history hashes.
 - Only after preflight passes: repository canonical Drizzle migrate and seed with the migration-owner account; apply scripts/app-privileges.sql as owner.
-- Postflight: all 11 migration hashes/timestamps, exact canonical tables, six disabled agents, allowed/forbidden grants, column restrictions, ten negative-operation probes with transaction rollback.
+- Postflight: all 11 migration hashes/timestamps, exact canonical tables, six disabled agents, allowed/forbidden grants, column restrictions, 17 negative-operation probes with transaction rollback.
 - Fail closed on any error. No automatic merge or deployment. No secret-bearing variables in checkout or npm ci. Driver exceptions are not printed because they may contain sensitive URLs.
 - Before any authorized writes, verify provider backups/snapshots and rollback procedures; this workflow itself is not a backup.
 
