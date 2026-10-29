@@ -110,6 +110,10 @@ async function check(phase,env=process.env) {
       }
       const create=(await app.unsafe("SELECT has_schema_privilege(current_user,'public','CREATE') ok"))[0];
       must(!create.ok,'Runtime can create schema objects');
+      const dbPriv=(await app.unsafe("SELECT has_database_privilege(current_user,current_database(),'CREATE') db_create,has_database_privilege(current_user,current_database(),'TEMPORARY') db_temp"))[0];
+      must(!dbPriv.db_create && !dbPriv.db_temp,'Runtime has database CREATE/TEMP');
+      // All probes are inside rollback-only transactions. A successful command
+      // triggers an exception and rollback, never a persistent state change.
       const probes=[
         'UPDATE public.audit_events SET event=event WHERE false',
         'DELETE FROM public.audit_events WHERE false',
@@ -120,7 +124,14 @@ async function check(phase,env=process.env) {
         'UPDATE public.agents SET execution_enabled=true WHERE false',
         'CREATE TABLE public.aicompany_permission_probe(id integer)',
         'CREATE SCHEMA aicompany_permission_probe',
-        'CREATE ROLE aicompany_permission_probe NOLOGIN'
+        'CREATE ROLE aicompany_permission_probe NOLOGIN',
+        'CREATE TEMP TABLE aicompany_permission_probe(id integer)',
+        'UPDATE public.runtime_denials SET reason=reason WHERE false',
+        'UPDATE public.pm_handoffs SET brief=brief WHERE false',
+        'DELETE FROM public.companies WHERE false',
+        'ALTER TABLE public.audit_events ADD COLUMN aicompany_permission_probe integer',
+        'DROP TABLE public.audit_events',
+        'GRANT ALL ON TABLE public.audit_events TO PUBLIC'
       ];
       for(const sql of probes) {
         let wasDenied=false;
@@ -130,7 +141,7 @@ async function check(phase,env=process.env) {
         }); } catch(e) { if(!wasDenied) throw e; }
         must(wasDenied,'Forbidden operation not denied');
       }
-      console.log('Postflight verified: 11 migrations, 6 disabled agents, 10 denied operations');
+      console.log('Postflight verified: 11 migrations, 6 disabled agents, 17 denied operations');
     } else console.log('Preflight verified: target, unprivileged runtime and managed schema');
   } finally { await Promise.allSettled([owner.end(),app.end()]); }
 }
