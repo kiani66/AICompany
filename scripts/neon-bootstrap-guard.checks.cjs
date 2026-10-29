@@ -5,11 +5,11 @@ const fs=require('node:fs');
 const assert=require('node:assert/strict');
 const {TARGET,TABLES,ACL,identity,validateRoles,manifest,validateHistory,validateTables}=require('./neon-bootstrap-guard.cjs');
 const owner='postgresql://neondb_owner:test-only@'+TARGET.directHost+'/neondb?sslmode=require';
-const runtime='postgresql://aicompany_runtime:test-only@'+TARGET.directHost+'/neondb?sslmode=require';
+const runtime='postgresql://aicompany_runtime_restricted:test-only@'+TARGET.directHost+'/neondb?sslmode=require';
 const clean=(name,login)=>({rolname:name,rolsuper:false,rolcreatedb:false,rolcreaterole:false,rolreplication:false,rolbypassrls:false,rolcanlogin:login});
 test('pins direct owner and permits direct/pooled runtime of exact branch',()=>{
   assert.equal(identity(owner,'owner').role,'neondb_owner');
-  assert.equal(identity(runtime,'runtime').role,'aicompany_runtime');
+  assert.equal(identity(runtime,'runtime').role,'aicompany_runtime_restricted');
   assert.equal(identity(runtime.replace(TARGET.directHost,TARGET.pooledHost),'runtime').host,TARGET.pooledHost);
   assert.throws(()=>identity(owner.replace(TARGET.directHost,TARGET.pooledHost),'owner'));
   assert.throws(()=>identity(owner.replace('neondb','otherdb'),'owner'));
