@@ -77,3 +77,9 @@ test('blocks the elevated original LOGIN even after switching credentials',()=>{
   assert.doesNotThrow(()=>validateLegacyRole(null,[]));
   assert.doesNotThrow(()=>validateLegacyRole({...legacy,rolcanlogin:false},[]));
 });
+
+test('repeated seed cannot leave AI employees execution-enabled',()=>{
+  const seed=fs.readFileSync('scripts/seed.ts','utf8');
+  assert.match(seed,/executionEnabled:\s*false\}\)\.onConflictDoUpdate/);
+  assert.match(seed,/onConflictDoUpdate\(\{target:agents\.slug,set:\{[^}]*executionEnabled:\s*false\}/);
+});
