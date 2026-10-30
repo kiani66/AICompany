@@ -16,3 +16,7 @@ GRANT SELECT, INSERT ON runtime_denials TO aicompany_app;
 GRANT UPDATE (count, last_seen) ON runtime_denials TO aicompany_app;
 GRANT SELECT, INSERT ON pm_handoffs, pm_artifacts TO aicompany_app;
 GRANT UPDATE (version) ON pm_handoffs TO aicompany_app;
+
+-- PostgreSQL grants are database-wide for TEMP: deny temporary DDL to app roles.
+-- Existing application flows do not use temporary tables.
+DO $$ BEGIN EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database()); END $$;
