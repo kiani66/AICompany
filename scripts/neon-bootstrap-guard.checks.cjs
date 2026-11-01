@@ -103,9 +103,9 @@ test('initial Neon login removes inherited PUBLIC TEMP atomically before LOGIN',
   const source=fs.readFileSync('scripts/provision-neon-runtime-credential.cjs','utf8');
   const revoke="await tx.unsafe('REVOKE TEMPORARY ON DATABASE neondb FROM PUBLIC')";
   const alter='await tx.unsafe("ALTER ROLE "+TARGET.runtime+" WITH LOGIN PASSWORD ';
-  assert.match(source,/await owner\\.begin\\(async tx=>\\{/);
-  assert.ok(source.includes(revoke),'Missing atomic database TEMP restriction');
+  assert.ok(source.includes('await owner.begin(async tx=>{'),'Requires atomic transaction');
+  assert.ok(source.includes(revoke),'Missing database TEMP restriction');
   assert.ok(source.includes(alter),'Missing atomic role activation');
   assert.ok(source.indexOf(revoke)<source.indexOf(alter),'Must revoke TEMP before enabling LOGIN');
-  assert.match(source,/must\\(!after\\.db_create && !after\\.db_temp && !after\\.schema_create\\)/);
+  assert.ok(source.includes('must(!after.db_create && !after.db_temp && !after.schema_create)'),'Missing effective privilege recheck');
 });
