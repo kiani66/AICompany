@@ -83,3 +83,18 @@ test('repeated seed cannot leave AI employees execution-enabled',()=>{
   assert.match(seed,/executionEnabled:\s*false\}\)\.onConflictDoUpdate/);
   assert.match(seed,/onConflictDoUpdate\(\{target:agents\.slug,set:\{[^}]*executionEnabled:\s*false\}/);
 });
+
+test('one-time runtime login initializer requires strong hex and a SQL-created unprivileged role',()=>{
+  const {validPassword,inspectRoles}=require('./provision-neon-runtime-credential.cjs');
+  const secret='a1'.repeat(32);
+  assert.ok(validPassword(secret));
+  for(const v of ['1234','A'.repeat(64),'a'.repeat(63),'abc\\n'.repeat(16),undefined]) {
+    assert.equal(validPassword(v),false);
+  }
+  const runtime=clean(TARGET.runtime,false),group=clean(TARGET.group,false);
+  assert.doesNotThrow(()=>inspectRoles(runtime,group,[TARGET.group],undefined));
+  assert.throws(()=>inspectRoles({...runtime,rolcanlogin:true},group,[TARGET.group],undefined));
+  assert.throws(()=>inspectRoles({...runtime,rolcreaterole:true},group,[TARGET.group],undefined));
+  assert.throws(()=>inspectRoles(runtime,group,['neon_superuser'],undefined));
+  assert.throws(()=>inspectRoles(runtime,group,[TARGET.group],clean('aicompany_runtime',true)));
+});
