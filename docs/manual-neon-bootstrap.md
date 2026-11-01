@@ -101,3 +101,19 @@ The restricted role should ultimately be LOGIN with no elevated attributes; it m
 - [ ] Separate explicit CEO approval for any production migration and deployment.
 
 **Current decision: security review may proceed; production deployment is unsafe.**
+
+
+## First-time restricted runtime password (separate manual action)
+
+The protected GitHub environment `production-database` has two separate purpose-specific secrets:
+- `AICOMPANY_MIGRATION_DATABASE_URL`: direct owner connection for this Neon project, main branch and neondb.
+- `AICOMPANY_RUNTIME_ROLE_PASSWORD`: exactly 64 lowercase hexadecimal characters, cryptographically random and saved in the CEO password manager.
+
+The new **Manual Neon restricted runtime credential (protected)** workflow is in this draft PR. It does **not** run on the PR branch. After code review, an explicitly approved merge and only after confirming the above secrets and release controls, manually run it from **main**, entering:
+- Confirmation: `PROVISION-AICOMPANY-RUNTIME-ROLE`
+- Neon project: `jolly-paper-27220159`
+- Neon branch: `br-quiet-feather-b7ew3f2r`
+
+It checks the exact direct Neon endpoint, DB and effective owner identity; refuses missing/weaker secrets, privileged or already-login runtime roles, unexpected memberships, existing legacy runtime, object ownership and CREATE/TEMP privileges. It then sets `LOGIN PASSWORD` **once** for the existing SQL-created restricted role and verifies a separate runtime connection. On failed post-change verification it attempts to revoke LOGIN again. It never logs secret material; it does not migrate, seed, merge, enable agents, or deploy. If the action fails, read the redacted result and inspect Neon manually before retrying: a failed post-validation may leave a password on a NOLOGIN role.
+
+**Important follow-up:** This action does not automatically create `AICOMPANY_RUNTIME_DATABASE_URL`. Using the same runtime password, privately construct the URL for `aicompany_runtime_restricted` and the pinned direct Neon host, with `sslmode=require`. Put it in the protected GitHub environment under `AICOMPANY_RUNTIME_DATABASE_URL` and as Vercel **Production-only** `DATABASE_URL`; never copy either URL to chat or Git. Independently verify Vercel integration-injected credentials are not privileged. Only after that perform the separately gated canonical migration workflow and subsequent release review.
