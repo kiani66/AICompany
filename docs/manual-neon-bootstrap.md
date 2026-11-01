@@ -109,6 +109,8 @@ The protected GitHub environment `production-database` has two separate purpose-
 - `AICOMPANY_MIGRATION_DATABASE_URL`: direct owner connection for this Neon project, main branch and neondb.
 - `AICOMPANY_RUNTIME_ROLE_PASSWORD`: exactly 64 lowercase hexadecimal characters, cryptographically random and saved in the CEO password manager.
 
+**Verified live database default (2026-11-01):** `neondb` currently grants `TEMPORARY` to `PUBLIC`, so the restricted runtime inherits TEMP even without any elevated role membership. The one-time initializer now revokes `TEMPORARY ON DATABASE neondb FROM PUBLIC` and enables the restricted LOGIN in a single database transaction. It checks effective TEMP/CREATE absence before committing, then independently validates runtime login. This is a database-wide ACL change affecting other roles' temporary-table ability, matching the later `scripts/app-privileges.sql` policy. No ACL change has been applied in live Neon yet.
+
 The new **Manual Neon restricted runtime credential (protected)** workflow is in this draft PR. It does **not** run on the PR branch. After code review, an explicitly approved merge and only after confirming the above secrets and release controls, manually run it from **main**, entering:
 - Confirmation: `PROVISION-AICOMPANY-RUNTIME-ROLE`
 - Neon project: `jolly-paper-27220159`
