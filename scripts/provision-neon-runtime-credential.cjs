@@ -46,11 +46,19 @@ async function provision(env=process.env) {
     must(ownership.db_owner!==TARGET.runtime && Number(owned.total)===0);
     const [privileges]=await owner.unsafe(
       "SELECT has_database_privilege('aicompany_runtime_restricted',current_database(),'CREATE') AS db_create,has_database_privilege('aicompany_runtime_restricted',current_database(),'TEMPORARY') AS db_temp,has_schema_privilege('aicompany_runtime_restricted','public','CREATE') AS schema_create");
-    must(!privileges.db_create && !privileges.db_temp && !privileges.schema_create);
-
-    // Password is a verified 64-character hex string: this SQL contains no
-    // untrusted SQL tokens. Do not log the statement, URL, or driver error.
-    await owner.unsafe("ALTER ROLE "+TARGET.runtime+" WITH LOGIN PASSWORD '"+env.AICOMPANY_RUNTIME_ROLE_PASSWORD+"'");
+    // PostgreSQL grants TEMPORARY to PUBLIC on new databases by default.
+    // This bootstrap explicitly removes that database-wide default as the
+    // canonical app-privileges.sql already requires; no migrations are run.
+    must(!privileges.db_create && !privileges.schema_create);
+    await owner.begin(async tx=>{
+      await tx.unsafe('REVOKE TEMPORARY ON DATABASE neondb FROM PUBLIC');
+      const [after]=await tx.unsafe(
+        "SELECT has_database_privilege('aicompany_runtime_restricted',current_database(),'CREATE') AS db_create,has_database_privilege('aicompany_runtime_restricted',current_database(),'TEMPORARY') AS db_temp,has_schema_privilege('aicompany_runtime_restricted','public','CREATE') AS schema_create");
+      must(!after.db_create && !after.db_temp && !after.schema_create);
+      // The password is validated as 64 lowercase hexadecimal chars.
+      // Never log SQL, credentials, or driver errors.
+      await tx.unsafe("ALTER ROLE "+TARGET.runtime+" WITH LOGIN PASSWORD '"+env.AICOMPANY_RUNTIME_ROLE_PASSWORD+"'");
+    });
     didAlter=true;
     const url=new URL(env.AICOMPANY_MIGRATION_DATABASE_URL);
     url.username=TARGET.runtime;
