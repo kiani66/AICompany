@@ -1,0 +1,77 @@
+name: Manual Neon production bootstrap (protected)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type BOOTSTRAP-AICOMPANY-PRODUCTION exactly'
+        required: true
+        type: string
+      neon_project:
+        description: 'Confirm exact Neon project ID'
+        required: true
+        type: string
+      neon_branch:
+        description: 'Confirm exact Neon branch ID'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aicompany-production-database-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    # The PR branch must never be allowed to bootstrap production.
+    if: >-
+      ${{ github.ref == 'refs/heads/main' &&
+      inputs.confirmation == 'BOOTSTRAP-AICOMPANY-PRODUCTION' &&
+      inputs.neon_project == 'jolly-paper-27220159' &&
+      inputs.neon_branch == 'br-quiet-feather-b7ew3f2r' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production-database
+    env:
+      EXPECTED_NEON_PROJECT_ID: jolly-paper-27220159
+      EXPECTED_NEON_BRANCH_ID: br-quiet-feather-b7ew3f2r
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      # Never expose database secrets to checkout, npm install, or unit tests.
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Test fail-closed bootstrap policy
+        run: node scripts/neon-bootstrap-guard.checks.cjs
+      - name: Verify production target, effective role and managed schema (read only)
+        env:
+          DATABASE_MIGRATION_URL: ${{ secrets.AICOMPANY_MIGRATION_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.AICOMPANY_RUNTIME_DATABASE_URL }}
+        run: node scripts/neon-bootstrap-guard.cjs pre
+      - name: Apply canonical Drizzle migrations (migration owner, direct endpoint only)
+        env:
+          DATABASE_MIGRATION_URL: ${{ secrets.AICOMPANY_MIGRATION_DATABASE_URL }}
+        run: npm run db:migrate
+      - name: Seed six disabled agents as migration owner
+        env:
+          DATABASE_URL: ${{ secrets.AICOMPANY_MIGRATION_DATABASE_URL }}
+        run: npm run db:seed
+      - name: Apply canonical least-privilege grants
+        env:
+          DATABASE_MIGRATION_URL: ${{ secrets.AICOMPANY_MIGRATION_DATABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_MIGRATION_URL" -X -v ON_ERROR_STOP=1 -f scripts/app-privileges.sql
+      - name: Verify 11 migration hashes, six disabled agents and forbidden operations
+        env:
+          DATABASE_MIGRATION_URL: ${{ secrets.AICOMPANY_MIGRATION_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.AICOMPANY_RUNTIME_DATABASE_URL }}
+        run: node scripts/neon-bootstrap-guard.cjs post
